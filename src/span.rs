@@ -125,6 +125,12 @@ impl Span {
     }
 }
 
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}..{}", self.low.0, self.high.0)
+    }
+}
+
 impl Index<Span> for str {
     type Output = str;
 
@@ -150,6 +156,17 @@ impl<T: fmt::Debug> fmt::Debug for Spanned<T> {
             .field("span", &self.span)
             .field("item", &self.item)
             .finish()
+    }
+}
+
+impl<T: Copy> Copy for Spanned<T> {}
+
+impl<T: Clone> Clone for Spanned<T> {
+    fn clone(&self) -> Self {
+        Self {
+            span: self.span,
+            item: self.item.clone(),
+        }
     }
 }
 

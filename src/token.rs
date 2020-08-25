@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Token {
     // Single character tokens.
@@ -49,4 +51,15 @@ pub enum Token {
     Invalid(u8),
 
     Eof,
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Token::Invalid(byte) = self {
+            if let Some(c) = std::char::from_u32(*byte as u32) {
+                return write!(f, "Invalid({})", c);
+            }
+        }
+        write!(f, "{:?}", self)
+    }
 }

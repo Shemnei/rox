@@ -3,7 +3,7 @@ use crate::token::Token;
 
 pub struct Lexer<'a> {
     source: &'a str,
-    cursor: Cursor<'a>,
+    cursor: Cursor<'a, u8>,
     current: BytePos,
 }
 
@@ -198,31 +198,31 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
-pub(crate) struct Cursor<'a> {
-    source: &'a [u8],
+pub(crate) struct Cursor<'a, T> {
+    source: &'a [T],
     offset: usize,
 }
 
-impl<'a> Cursor<'a> {
-    pub(crate) fn new(source: &'a [u8]) -> Self {
+impl<'a, T: Copy> Cursor<'a, T> {
+    pub(crate) fn new(source: &'a [T]) -> Self {
         Self { source, offset: 0 }
     }
 
-    pub(crate) fn first(&self) -> Option<u8> {
-        self.nth(0)
+    pub(crate) fn first(&self) -> Option<T> {
+        self.peek_nth(0)
     }
 
-    pub(crate) fn second(&self) -> Option<u8> {
-        self.nth(1)
+    pub(crate) fn second(&self) -> Option<T> {
+        self.peek_nth(1)
     }
 
-    pub(crate) fn next(&mut self) -> Option<u8> {
-        let byte = self.get(self.offset)?;
+    pub(crate) fn next(&mut self) -> Option<T> {
+        let next = self.get(self.offset)?;
         self.offset += 1;
-        Some(byte)
+        Some(next)
     }
 
-    fn nth(&self, nth: usize) -> Option<u8> {
+    fn peek_nth(&self, nth: usize) -> Option<T> {
         self.get(self.offset + nth)
     }
 
@@ -230,7 +230,7 @@ impl<'a> Cursor<'a> {
         self.source.len() > idx
     }
 
-    fn get(&self, idx: usize) -> Option<u8> {
+    fn get(&self, idx: usize) -> Option<T> {
         if self.in_bounds(idx) {
             Some(self.source[idx])
         } else {

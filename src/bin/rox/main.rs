@@ -1,6 +1,8 @@
 use std::ffi::OsString;
 use std::path::Path;
 
+use rox::{expr::pretty_fmt, lex::Lexer, parse::Parser};
+
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn main() -> Result<()> {
@@ -44,11 +46,27 @@ fn run_prompt() -> Result<()> {
 }
 
 fn run(source: &str) -> Result<()> {
-    let scanner = rox::lex::Lexer::new(source);
+    let scanner = Lexer::new(source);
+    let tokens = scanner.collect::<Vec<_>>();
 
-    for token in scanner {
+    for token in tokens.iter() {
         println!("{:?}: |{}|", token, &source[token.span]);
     }
+
+    let mut parser = Parser::new(&tokens);
+
+    if let Some(expr) = parser.parse() {
+        println!("{:#?}", expr);
+        let mut out = String::new();
+        pretty_fmt(&mut out, &expr, source);
+        println!("{}", out);
+    } else {
+        println!("No expression");
+    }
+
+    //for token in scanner {
+    //    println!("{:?}: |{}|", token, &source[token.span]);
+    //}
 
     Ok(())
 }

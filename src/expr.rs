@@ -1,7 +1,8 @@
 use crate::span::Spanned;
 use crate::token::Token;
 
-enum Expr {
+#[derive(Debug, Clone)]
+pub enum Expr {
     ///// Variable assignment e.g. `x = 20`.
     //Assign {
     //    name: Span<Token>,
@@ -62,7 +63,7 @@ enum Expr {
     //},
 }
 
-fn pretty_fmt(out: &mut String, expr: &Expr, source: &str) {
+pub fn pretty_fmt(out: &mut String, expr: &Expr, source: &str) {
     match expr {
         Expr::Binary {
             left,
