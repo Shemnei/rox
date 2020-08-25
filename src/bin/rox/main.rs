@@ -1,11 +1,5 @@
-mod span;
-mod lex;
-
 use std::ffi::OsString;
 use std::path::Path;
-
-use lex::Scanner;
-
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -50,10 +44,10 @@ fn run_prompt() -> Result<()> {
 }
 
 fn run(source: &str) -> Result<()> {
-    let scanner = Scanner::new(source);
+    let scanner = rox::lex::Lexer::new(source);
 
     for token in scanner {
-        println!("{:?}", token);
+        println!("{:?}: |{}|", token, &source[token.span]);
     }
 
     Ok(())
