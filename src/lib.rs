@@ -3,6 +3,7 @@
 // TODO: all extra challenges.
 
 pub mod expr;
+pub mod interpret;
 pub mod lex;
 pub mod parse;
 pub mod span;

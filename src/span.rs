@@ -82,6 +82,11 @@ pub struct Span {
 }
 
 impl Span {
+    pub const DUMMY: Span = Span {
+        low: BytePos(u32::max_value()),
+        high: BytePos(u32::max_value()),
+    };
+
     #[inline]
     pub fn new(mut low: BytePos, mut high: BytePos) -> Self {
         if low > high {

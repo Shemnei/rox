@@ -1,9 +1,11 @@
 use std::ffi::OsString;
 use std::path::Path;
 
-use rox::{expr::pretty_fmt, lex::Lexer, parse::Parser};
+use rox::{expr::pretty_fmt, interpret::Interpreter, lex::Lexer, parse::Parser};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+static INTERPRETER: Interpreter = Interpreter::new();
 
 fn main() -> Result<()> {
     let args = std::env::args_os().skip(1).collect::<Vec<OsString>>();
@@ -50,16 +52,20 @@ fn run(source: &str) -> Result<()> {
     let tokens = scanner.collect::<Vec<_>>();
 
     for token in tokens.iter() {
-        println!("{:?}: |{}|", token, &source[token.span]);
+        eprintln!("{:?}: |{}|", token, &source[token.span]);
     }
 
     let mut parser = Parser::new(&tokens);
 
     if let Some(expr) = parser.parse() {
-        println!("{:#?}", expr);
+        eprintln!("{:#?}", expr);
         let mut out = String::new();
         pretty_fmt(&mut out, &expr, source);
-        println!("{}", out);
+        eprintln!("{}", out);
+        if let Err(err) = INTERPRETER.interpret(source, &expr) {
+            eprintln!("{}", err);
+            //std::process::exit(70);
+        }
     } else {
         println!("No expression");
     }

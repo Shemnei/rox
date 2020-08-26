@@ -1,4 +1,4 @@
-use crate::span::Spanned;
+use crate::span::{Span, Spanned};
 use crate::token::Token;
 
 #[derive(Debug, Clone)]
@@ -61,6 +61,31 @@ pub enum Expr {
     //Variable {
     //    name: Span<Token>,
     //},
+}
+
+impl Expr {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Binary { .. } => "Binary",
+            Self::Grouping { .. } => "Grouping",
+            Self::Literal { .. } => "Literal",
+            Self::Unary { .. } => "Unary",
+        }
+    }
+
+    // TODO: make Expr => ExprKind and have Expr hold ExprKind and the overall span.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Binary {
+                left,
+                operator: _,
+                right,
+            } => left.span().union(right.span()),
+            Self::Grouping { expression } => expression.span(),
+            Self::Literal { value } => value.span,
+            Self::Unary { operator, right } => operator.span.union(right.span()),
+        }
+    }
 }
 
 pub fn pretty_fmt(out: &mut String, expr: &Expr, source: &str) {

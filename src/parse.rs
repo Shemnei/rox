@@ -252,9 +252,9 @@ impl<'a> Parser<'a> {
         // errors. Will probably later be handled by `self.synchronize`.
         // TODO: better location information for EOF
         Some(Err(ParseError::ExpectedExpression {
-            got: self.peek().unwrap_or_else(||
-                Span::new(u32::max_value().into(), u32::max_value().into()).span(Token::Eof),
-            ),
+            got: self.peek().unwrap_or_else(|| {
+                Span::new(u32::max_value().into(), u32::max_value().into()).span(Token::Eof)
+            }),
         }))
     }
 
