@@ -1,19 +1,22 @@
-use crate::span::{Span, Spanned};
+use crate::span::Span;
+use crate::symbol::Symbol;
 use crate::token::Token;
 
 #[derive(Debug, Clone)]
-pub enum Expr {
-    ///// Variable assignment e.g. `x = 20`.
-    //Assign {
-    //    name: Span<Token>,
-    //    value: Box<Expr>,
-    //},
+pub enum ExprKind {
+    /// Variable assignment e.g. `x = 20`.
+    Assign {
+        name: Token,
+        symbol: Symbol,
+        value: Box<Expr>,
+    },
+
     /// Binary expression e.g. `2 + 2`.
     /// Infix arithmetic: `+`, `-`, `*`, `/`.
     /// Logic: `==`, `!=`, `<`, `<=`, `>`, `>=`.
     Binary {
         left: Box<Expr>,
-        operator: Spanned<Token>,
+        operator: Token,
         right: Box<Expr>,
     },
 
@@ -31,7 +34,7 @@ pub enum Expr {
     Grouping { expression: Box<Expr> },
 
     /// Literal value like numbers, strings, booleans and `nil` e.g. `2`.
-    Literal { value: Spanned<Token> },
+    Literal { value: Token, symbol: Symbol },
 
     //Logical {
     //    left: Box<Expr>,
@@ -54,46 +57,70 @@ pub enum Expr {
     //    keyword: Span<Token>,
     //},
     /// Unary expression like `!` and `-` e.g. `!2`.
-    Unary {
-        operator: Spanned<Token>,
-        right: Box<Expr>,
-    },
-    //Variable {
-    //    name: Span<Token>,
-    //},
+    Unary { operator: Token, right: Box<Expr> },
+
+    /// Variable access expressions e.g. `x`.
+    Variable { name: Token, symbol: Symbol },
 }
 
-impl Expr {
+impl ExprKind {
     pub fn name(&self) -> &'static str {
         match self {
+            Self::Assign { .. } => "Assign",
             Self::Binary { .. } => "Binary",
             Self::Grouping { .. } => "Grouping",
             Self::Literal { .. } => "Literal",
             Self::Unary { .. } => "Unary",
-        }
-    }
-
-    // TODO: make Expr => ExprKind and have Expr hold ExprKind and the overall span.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Binary {
-                left,
-                operator: _,
-                right,
-            } => left.span().union(right.span()),
-            Self::Grouping { expression } => expression.span(),
-            Self::Literal { value } => value.span,
-            Self::Unary { operator, right } => operator.span.union(right.span()),
+            Self::Variable { .. } => "Variable",
         }
     }
 }
 
-pub fn pretty_fmt(out: &mut String, expr: &Expr, source: &str) {
-    match expr {
-        Expr::Binary {
+#[derive(Debug, Clone)]
+pub struct Expr {
+    pub span: Span,
+    pub kind: ExprKind,
+}
+
+impl Expr {
+    pub fn new(kind: ExprKind) -> Self {
+        Self {
+            span: span(&kind),
+            kind,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        self.kind.name()
+    }
+}
+
+fn span(kind: &ExprKind) -> Span {
+    match kind {
+        ExprKind::Assign { name, value, .. } => name.span.union(value.span),
+
+        ExprKind::Binary {
             left,
-            operator,
+            operator: _,
             right,
+        } => left.span.union(right.span),
+
+        ExprKind::Grouping { expression } => expression.span,
+
+        ExprKind::Literal { value, .. } => value.span,
+
+        ExprKind::Unary { operator, right } => operator.span.union(right.span),
+
+        ExprKind::Variable { name, .. } => name.span,
+    }
+}
+
+pub fn pretty_fmt(out: &mut String, expr: &Expr, source: &str) {
+    match &expr.kind {
+        ExprKind::Binary {
+            ref left,
+            operator,
+            ref right,
         } => {
             out.push('(');
             out.push_str(&source[operator.span]);
@@ -104,59 +131,28 @@ pub fn pretty_fmt(out: &mut String, expr: &Expr, source: &str) {
             out.push(')');
         }
 
-        Expr::Grouping { expression } => {
+        ExprKind::Grouping { ref expression } => {
             out.push('(');
             out.push_str("group ");
             pretty_fmt(out, expression, source);
             out.push(')');
         }
 
-        Expr::Literal { value } => {
+        ExprKind::Literal { value, .. } => {
             out.push_str(&source[value.span]);
         }
 
-        Expr::Unary { operator, right } => {
+        ExprKind::Unary {
+            operator,
+            ref right,
+        } => {
             out.push('(');
             out.push_str(&source[operator.span]);
             out.push(' ');
             pretty_fmt(out, right, source);
             out.push(')');
         }
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::span::*;
-    use crate::token::Token;
-
-    #[test]
-    fn demo_pretty_fmt() {
-        let expr = Expr::Binary {
-            left: Expr::Unary {
-                operator: Span::new(0u32.into(), 1u32.into()).span(Token::Minus),
-                right: Expr::Literal {
-                    value: Span::new(1u32.into(), 4u32.into()).span(Token::Number),
-                }
-                .into(),
-            }
-            .into(),
-            operator: Span::new(5u32.into(), 6u32.into()).span(Token::Star),
-            right: Expr::Grouping {
-                expression: Expr::Literal {
-                    value: Span::new(7u32.into(), 12u32.into()).span(Token::Number),
-                }
-                .into(),
-            }
-            .into(),
-        };
-        let source = "-123 * 45.67";
-
-        let mut out = String::new();
-
-        pretty_fmt(&mut out, &expr, &source);
-
-        assert_eq!(&out, "(* (- 123) (group 45.67))");
+        _ => panic!("Unknown expr {}", expr.kind.name()),
     }
 }

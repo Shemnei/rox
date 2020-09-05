@@ -1,5 +1,26 @@
-use crate::span::{BytePos, Pos, Span, Spanned};
-use crate::token::Token;
+use crate::span::{BytePos, Pos, Span};
+use crate::token::{Token, TokenKind};
+
+pub(crate) const KEYWORDS: &[(&str, TokenKind)] = &[
+    ("and", TokenKind::And),
+    ("class", TokenKind::Class),
+    ("else", TokenKind::Else),
+    ("false", TokenKind::False),
+    ("fun", TokenKind::Fun),
+    ("for", TokenKind::For),
+    ("if", TokenKind::If),
+    ("nil", TokenKind::Nil),
+    ("or", TokenKind::Or),
+    ("print", TokenKind::Print),
+    ("return", TokenKind::Return),
+    ("super", TokenKind::Super),
+    ("this", TokenKind::This),
+    ("true", TokenKind::True),
+    ("var", TokenKind::Var),
+    ("while", TokenKind::While),
+];
+
+const KEYWORD_MAX_LEN: usize = 6;
 
 pub struct Lexer<'a> {
     source: &'a str,
@@ -16,7 +37,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn next_token(&mut self) -> Spanned<Token> {
+    fn next_token(&mut self) -> Token {
         // consume `meaningless` chars
         self.consume_while(Self::is_whitespace);
 
@@ -24,7 +45,7 @@ impl<'a> Lexer<'a> {
 
         let next = match self.consume() {
             Some(b) => b,
-            None => return self.token(self.current, Token::Eof),
+            None => return self.emit(self.current, TokenKind::Eof),
         };
 
         match (next, self.peek()) {
@@ -35,40 +56,44 @@ impl<'a> Lexer<'a> {
                 self.next_token()
             }
 
-            (b'(', ..) => self.token(start, Token::LeftParen),
-            (b')', ..) => self.token(start, Token::RightParen),
-            (b'{', ..) => self.token(start, Token::LeftBrace),
-            (b'}', ..) => self.token(start, Token::RightBrace),
-            (b',', ..) => self.token(start, Token::Comma),
-            (b'.', ..) => self.token(start, Token::Dot),
-            (b'-', ..) => self.token(start, Token::Minus),
-            (b'+', ..) => self.token(start, Token::Plus),
-            (b';', ..) => self.token(start, Token::Semicolon),
-            (b'/', ..) => self.token(start, Token::Slash), // we checked above for comment lines
-            (b'*', ..) => self.token(start, Token::Star),
+            (b'(', ..) => self.emit(start, TokenKind::LeftParen),
+            (b')', ..) => self.emit(start, TokenKind::RightParen),
+            (b'{', ..) => self.emit(start, TokenKind::LeftBrace),
+            (b'}', ..) => self.emit(start, TokenKind::RightBrace),
+            (b',', ..) => self.emit(start, TokenKind::Comma),
+            (b'.', ..) => self.emit(start, TokenKind::Dot),
+            (b'-', ..) => self.emit(start, TokenKind::Minus),
+            (b'+', ..) => self.emit(start, TokenKind::Plus),
+            (b';', ..) => self.emit(start, TokenKind::Semicolon),
+            (b'/', ..) => self.emit(start, TokenKind::Slash), // we checked above for comment lines
+            (b'*', ..) => self.emit(start, TokenKind::Star),
 
-            (b'!', ..) => self.token_or(start, Token::BangEqual, Token::Bang, |b| b == b'='),
-            (b'=', ..) => self.token_or(start, Token::EqualEqual, Token::Equal, |b| b == b'='),
-            (b'<', ..) => self.token_or(start, Token::LessEqual, Token::Less, |b| b == b'='),
-            (b'>', ..) => self.token_or(start, Token::GreaterEqual, Token::Greater, |b| b == b'='),
+            (b'!', ..) => self.emit_or(start, TokenKind::BangEqual, TokenKind::Bang, |b| b == b'='),
+            (b'=', ..) => self.emit_or(start, TokenKind::EqualEqual, TokenKind::Equal, |b| {
+                b == b'='
+            }),
+            (b'<', ..) => self.emit_or(start, TokenKind::LessEqual, TokenKind::Less, |b| b == b'='),
+            (b'>', ..) => self.emit_or(start, TokenKind::GreaterEqual, TokenKind::Greater, |b| {
+                b == b'='
+            }),
 
             (x, ..) if Self::is_digit(x) => self.number(start),
             (x, ..) if Self::is_alpha(x) => self.identifier(start),
             (b'"', ..) => self.string(start),
 
-            (x, ..) => self.token(start, Token::Invalid(x)),
+            (x, ..) => self.emit(start, TokenKind::Invalid(x)),
         }
     }
 
-    fn string(&mut self, start: BytePos) -> Spanned<Token> {
+    fn string(&mut self, start: BytePos) -> Token {
         self.consume_while(|b| b != b'"');
         // TODO: handle unclosed string
         // consume closing `"`.
         self.consume();
-        self.token(start, Token::String)
+        self.emit(start, TokenKind::String)
     }
 
-    fn number(&mut self, start: BytePos) -> Spanned<Token> {
+    fn number(&mut self, start: BytePos) -> Token {
         self.consume_while(Self::is_digit);
         if matches!(
                 (self.peek(), self.peek_next()),
@@ -79,55 +104,35 @@ impl<'a> Lexer<'a> {
             self.consume_while(Self::is_digit);
         }
 
-        self.token(start, Token::Number)
+        self.emit(start, TokenKind::Number)
     }
 
-    fn identifier(&mut self, start: BytePos) -> Spanned<Token> {
-        const KEYWORDS: &[(&str, Token)] = &[
-            ("and", Token::And),
-            ("class", Token::Class),
-            ("else", Token::Else),
-            ("false", Token::False),
-            ("fun", Token::Fun),
-            ("for", Token::For),
-            ("if", Token::If),
-            ("nil", Token::Nil),
-            ("or", Token::Or),
-            ("print", Token::Print),
-            ("return", Token::Return),
-            ("super", Token::Super),
-            ("this", Token::This),
-            ("true", Token::True),
-            ("var", Token::Var),
-            ("while", Token::While),
-        ];
-        const KEYWORD_MAX_LEN: usize = 6;
-
+    fn identifier(&mut self, start: BytePos) -> Token {
         self.consume_while(Self::is_alpha_numeric);
         // As we work with byte positions a raw index into the string is valid.
         let ident = &self.source[start.to_usize()..self.current.to_usize()];
 
         if ident.len() > KEYWORD_MAX_LEN {
-            return self.token(start, Token::Identifier);
+            return self.emit(start, TokenKind::Identifier);
         }
 
         match KEYWORDS.iter().find(|&&(w, _)| w == ident).map(|&(_, t)| t) {
-            Some(token) => self.token(start, token),
-            None => self.token(start, Token::Identifier),
+            Some(token) => self.emit(start, token),
+            None => self.emit(start, TokenKind::Identifier),
         }
     }
 
-    fn token(&self, start: BytePos, token: Token) -> Spanned<Token> {
-        Spanned {
+    fn emit(&self, start: BytePos, kind: TokenKind) -> Token {
+        Token {
             span: Span {
                 low: start,
                 high: self.current,
             },
-            item: token,
+            kind,
         }
     }
 
-    fn token_or<F>(&mut self, start: BytePos, left: Token, right: Token, cmp: F) -> Spanned<Token>
+    fn emit_or<F>(&mut self, start: BytePos, left: TokenKind, right: TokenKind, cmp: F) -> Token
     where
         F: Fn(u8) -> bool,
     {
@@ -137,10 +142,10 @@ impl<'a> Lexer<'a> {
                 // Unwrap is save we checked with peek == Some if there are
                 // more chars available.
                 self.consume().expect("consume to return a valid byte");
-                self.token(start, left)
+                self.emit(start, left)
             }
 
-            _ => self.token(start, right),
+            _ => self.emit(start, right),
         }
     }
 
@@ -188,11 +193,11 @@ impl<'a> Lexer<'a> {
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Spanned<Token>;
+    type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.next_token() {
-            Spanned { item, .. } if item == Token::Eof => None,
+            Token { kind, .. } if kind == TokenKind::Eof => None,
             token => Some(token),
         }
     }

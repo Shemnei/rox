@@ -4,7 +4,7 @@
 
 use std::convert::From;
 use std::fmt;
-use std::ops::{Add, AddAssign, Index};
+use std::ops::{Add, AddAssign, Index, Sub, SubAssign};
 
 pub trait Pos {
     fn from_usize(n: usize) -> Self;
@@ -66,9 +66,43 @@ impl Add<u32> for BytePos {
     }
 }
 
+impl AddAssign<BytePos> for BytePos {
+    fn add_assign(&mut self, rhs: BytePos) {
+        self.0 += rhs.0;
+    }
+}
+
 impl AddAssign<u32> for BytePos {
     fn add_assign(&mut self, rhs: u32) {
         self.0 += rhs;
+    }
+}
+
+impl Sub for BytePos {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 - rhs.0)
+    }
+}
+
+impl Sub<u32> for BytePos {
+    type Output = Self;
+
+    fn sub(self, rhs: u32) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl SubAssign<BytePos> for BytePos {
+    fn sub_assign(&mut self, rhs: BytePos) {
+        self.0 -= rhs.0;
+    }
+}
+
+impl SubAssign<u32> for BytePos {
+    fn sub_assign(&mut self, rhs: u32) {
+        self.0 -= rhs;
     }
 }
 
@@ -117,8 +151,21 @@ impl Span {
     }
 
     #[inline]
-    pub fn span<T>(self, item: T) -> Spanned<T> {
-        Spanned { span: self, item }
+    pub fn add_low(mut self, add: BytePos) -> Self {
+        self.low += add;
+        self
+    }
+
+    #[inline]
+    pub fn add_high(mut self, add: BytePos) -> Self {
+        self.high += add;
+        self
+    }
+
+    #[inline]
+    pub fn sub_high(mut self, sub: BytePos) -> Self {
+        self.high -= sub;
+        self
     }
 
     /// Returns a `Span` which encloses both `self` and `other`.
@@ -144,41 +191,8 @@ impl Index<Span> for str {
     }
 }
 
-pub struct Spanned<T> {
-    pub span: Span,
-    pub item: T,
-}
-
-impl<T> Spanned<T> {
-    pub fn into_item(self) -> T {
-        self.item
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for Spanned<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Spanned")
-            .field("span", &self.span)
-            .field("item", &self.item)
-            .finish()
-    }
-}
-
-impl<T: Copy> Copy for Spanned<T> {}
-
-impl<T: Clone> Clone for Spanned<T> {
-    fn clone(&self) -> Self {
-        Self {
-            span: self.span,
-            item: self.item.clone(),
-        }
-    }
-}
-
-impl<T> Index<Spanned<T>> for str {
-    type Output = str;
-
-    fn index(&self, index: Spanned<T>) -> &Self::Output {
-        &self[index.span]
+impl From<Span> for std::ops::Range<usize> {
+    fn from(s: Span) -> Self {
+        s.low.to_usize()..s.high.to_usize()
     }
 }
