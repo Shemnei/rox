@@ -354,7 +354,7 @@ impl<'a> Interpreter<'a> {
             match stmt {
                 Ok(stmt) => {
                     eprintln!("{:#?}", stmt);
-                    match self.execute(&stmt) {
+                    match self.visit_stmt(&stmt) {
                         Ok(_) => {}
                         Err(err) => eprintln!("{}", err),
                     }
@@ -365,364 +365,368 @@ impl<'a> Interpreter<'a> {
 
         Ok(())
     }
+}
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
-        match stmt.kind {
-            StmtKind::Block { .. } => self.execute_block(stmt),
-            StmtKind::Expression { .. } => self.execute_expression(stmt),
-            StmtKind::If { .. } => self.execute_if(stmt),
-            StmtKind::Print { .. } => self.execute_print(stmt),
-            StmtKind::Var { .. } => self.execute_var(stmt),
-            StmtKind::While { .. } => self.execute_while(stmt),
-            _ => Err(RuntimeError::UnexpectedStatement {
-                span: stmt.span,
-                expected: "any",
-                got: stmt.name(),
+use crate::expr::ExprVisitor;
+use crate::symbol::Symbol;
+use crate::token::Token;
+
+#[rustfmt::skip]
+impl<'a> ExprVisitor for Interpreter<'a> {
+    type Output = Result<Value>;
+
+    fn visit_assign_expr(
+        &mut self,
+        span: Span,
+        name: Token,
+        symbol: Symbol,
+        value: &Expr
+    ) -> Self::Output {
+        let value = self.visit_expr(value)?;
+
+        if !self.sess.env_mut().assign(symbol, value.clone()) {
+            let var_name = self.sess.get(symbol);
+            return Err(RuntimeError::UndefinedVariable {
+                span: name.span,
+                name: var_name,
+            });
+        }
+
+        Ok(value)
+    }
+
+    fn visit_binary_expr(
+        &mut self,
+        span: Span,
+        left: &Expr,
+        operator: Token,
+        right: &Expr
+    ) -> Self::Output {
+        let left = self.visit_expr(left)?;
+        let right = self.visit_expr(right)?;
+
+        match operator.kind {
+            TokenKind::Plus => left.try_add(right).map_err(|err| err.with_span(span)),
+
+            TokenKind::Minus => left.try_sub(right).map_err(|err| err.with_span(span)),
+
+            TokenKind::Slash => left.try_div(right).map_err(|err| err.with_span(span)),
+
+            TokenKind::Star => left.try_mul(right).map_err(|err| err.with_span(span)),
+
+            TokenKind::Greater => {
+                // left > right
+                let cmp = left
+                    .try_cmp(&right)
+                    .map_err(|err| err.with_span(span))?;
+                Ok(Value::Boolean(cmp == Ordering::Greater))
+            }
+
+            TokenKind::GreaterEqual => {
+                // left >= right
+                let cmp = left
+                    .try_cmp(&right)
+                    .map_err(|err| err.with_span(span))?;
+                Ok(Value::Boolean(
+                    cmp == Ordering::Greater || cmp == Ordering::Equal,
+                ))
+            }
+
+            TokenKind::Less => {
+                // left < right
+                let cmp = left
+                    .try_cmp(&right)
+                    .map_err(|err| err.with_span(span))?;
+                Ok(Value::Boolean(cmp == Ordering::Less))
+            }
+
+            TokenKind::LessEqual => {
+                // left <= right
+                let cmp = left
+                    .try_cmp(&right)
+                    .map_err(|err| err.with_span(span))?;
+                Ok(Value::Boolean(
+                    cmp == Ordering::Less || cmp == Ordering::Equal,
+                ))
+            }
+
+            TokenKind::BangEqual => Ok(Value::Boolean(left != right)),
+
+            TokenKind::EqualEqual => Ok(Value::Boolean(left == right)),
+
+            x => Err(RuntimeError::UnexpectedToken {
+                span,
+                expected: "binary operator",
+                got: x,
             }),
         }
     }
 
-    fn execute_block(&mut self, stmt: &Stmt) -> Result<()> {
-        if let StmtKind::Block { ref statments } = stmt.kind {
-            self.sess.env_mut().push_scope();
+    fn visit_call_expr(
+        &mut self,
+        span: Span,
+        callee: &Expr,
+        arguments: &[Box<Expr>],
+        paren: Token
+    ) -> Self::Output {
+        todo!()
+    }
 
-            for s in statments {
-                if let Err(err) = self.execute(s) {
-                    self.sess.env_mut().pop_scope();
-                    return Err(err);
-                }
+    fn visit_get_expr(
+        &mut self,
+        span: Span,
+        object: &Expr,
+        name: Token,
+        symbol: Symbol
+    ) -> Self::Output {
+        todo!()
+    }
+
+    fn visit_grouping_expr(
+        &mut self,
+        span: Span,
+        expression: &Expr
+    ) -> Self::Output {
+        unimplemented!()
+    }
+
+    fn visit_literal_expr(
+        &mut self,
+        span: Span,
+        value: Token,
+        symbol: Symbol
+    ) -> Self::Output {
+        match value.kind {
+            TokenKind::String => {
+                let val = self.sess.get(symbol);
+                Ok(Value::String(val.into()))
             }
 
-            self.sess.env_mut().pop_scope();
-
-            Ok(())
-        } else {
-            Err(RuntimeError::UnexpectedStatement {
-                span: stmt.span,
-                expected: "expression",
-                got: stmt.name(),
-            })
-        }
-    }
-
-    fn execute_expression(&mut self, stmt: &Stmt) -> Result<()> {
-        if let StmtKind::Expression { ref expression } = stmt.kind {
-            self.evaluate(expression)?;
-            Ok(())
-        } else {
-            Err(RuntimeError::UnexpectedStatement {
-                span: stmt.span,
-                expected: "expression",
-                got: stmt.name(),
-            })
-        }
-    }
-
-    fn execute_if(&mut self, stmt: &Stmt) -> Result<()> {
-        if let StmtKind::If {
-            ref condition,
-            ref then_branch,
-            ref else_branch,
-        } = stmt.kind
-        {
-            if self.evaluate(condition)?.is_truthy() {
-                self.execute(then_branch)?;
-            } else if let Some(else_branch) = else_branch {
-                self.execute(else_branch)?;
-            }
-            Ok(())
-        } else {
-            Err(RuntimeError::UnexpectedStatement {
-                span: stmt.span,
-                expected: "if",
-                got: stmt.name(),
-            })
-        }
-    }
-
-    fn execute_print(&mut self, stmt: &Stmt) -> Result<()> {
-        if let StmtKind::Print { ref expression } = stmt.kind {
-            let value = self.evaluate(expression)?;
-            println!("{}", value);
-            Ok(())
-        } else {
-            Err(RuntimeError::UnexpectedStatement {
-                span: stmt.span,
-                expected: "print",
-                got: stmt.name(),
-            })
-        }
-    }
-
-    fn execute_var(&mut self, stmt: &Stmt) -> Result<()> {
-        if let StmtKind::Var {
-            name: _,
-            symbol,
-            ref initializer,
-        } = stmt.kind
-        {
-            // FIXME: not optimal as we first evaluate and then check if the var even exists.
-            let value = match initializer {
-                Some(initializer) => self.evaluate(initializer)?,
-                None => Value::Nil,
-            };
-
-            self.sess.env_mut().define(symbol, value);
-            Ok(())
-        } else {
-            Err(RuntimeError::UnexpectedStatement {
-                span: stmt.span,
-                expected: "var",
-                got: stmt.name(),
-            })
-        }
-    }
-
-    fn execute_while(&mut self, stmt: &Stmt) -> Result<()> {
-        if let StmtKind::While {
-            ref condition,
-            ref body,
-        } = stmt.kind
-        {
-            while self.evaluate(condition)?.is_truthy() {
-                self.execute(body)?;
+            TokenKind::Number => {
+                let val = self.sess.get(symbol);
+                Ok(Value::Number(val.parse().unwrap()))
             }
 
-            Ok(())
-        } else {
-            Err(RuntimeError::UnexpectedStatement {
-                span: stmt.span,
-                expected: "while",
-                got: stmt.name(),
-            })
-        }
-    }
+            TokenKind::True => Ok(Value::Boolean(true)),
 
-    fn evaluate(&mut self, expr: &Expr) -> Result<Value> {
-        match expr.kind {
-            ExprKind::Assign { .. } => self.evaluate_assign(expr),
-            ExprKind::Literal { .. } => self.evaluate_literal(expr),
-            ExprKind::Logical { .. } => self.evaluate_logical(expr),
-            ExprKind::Unary { .. } => self.evaluate_unary(expr),
-            ExprKind::Variable { .. } => self.evaluate_variable(expr),
-            ExprKind::Binary { .. } => self.evaluate_binary(expr),
-            _ => Err(RuntimeError::UnexpectedExpression {
-                span: expr.span,
-                expected: "any",
-                got: expr.name(),
-            }),
-        }
-    }
+            TokenKind::False => Ok(Value::Boolean(false)),
 
-    fn evaluate_assign(&mut self, expr: &Expr) -> Result<Value> {
-        if let ExprKind::Assign {
-            name,
-            symbol,
-            ref value,
-        } = expr.kind
-        {
-            // FIXME: not optimal as we first evaluate and then check if the var even exists.
-            let value = self.evaluate(value)?;
+            TokenKind::Nil => Ok(Value::Nil),
 
-            if !self.sess.env_mut().assign(symbol, value.clone()) {
-                let var_name = self.sess.get(symbol);
-                return Err(RuntimeError::UndefinedVariable {
-                    span: name.span,
-                    name: var_name,
-                });
-            }
-            Ok(value)
-        } else {
-            Err(RuntimeError::UnexpectedExpression {
-                span: expr.span,
-                expected: "assign",
-                got: expr.name(),
-            })
-        }
-    }
-
-    fn evaluate_literal(&mut self, expr: &Expr) -> Result<Value> {
-        if let ExprKind::Literal { value, symbol } = expr.kind {
-            match value.kind {
-                TokenKind::String => {
-                    // The span for the string also includes the delimiters (`"`).
-                    let val = self.sess.get(symbol);
-                    Ok(Value::String(val.into()))
-                }
-
-                TokenKind::Number => {
-                    let val = self.sess.get(symbol);
-                    Ok(Value::Number(val.parse().unwrap()))
-                }
-
-                TokenKind::True => Ok(Value::Boolean(true)),
-
-                TokenKind::False => Ok(Value::Boolean(false)),
-
-                TokenKind::Nil => Ok(Value::Nil),
-
-                x => Err(RuntimeError::UnexpectedToken {
-                    span: expr.span,
-                    expected: "literal",
-                    got: x,
-                }),
-            }
-        } else {
-            Err(RuntimeError::UnexpectedExpression {
-                span: expr.span,
+            x => Err(RuntimeError::UnexpectedToken {
+                span,
                 expected: "literal",
-                got: expr.name(),
-            })
+                got: x,
+            }),
         }
     }
 
-    fn evaluate_logical(&mut self, expr: &Expr) -> Result<Value> {
-        if let ExprKind::Logical {
-            ref left,
-            operator,
-            ref right,
-        } = expr.kind
-        {
-            let left = self.evaluate(left)?;
+    fn visit_logical_expr(
+        &mut self,
+        span: Span,
+        left: &Expr,
+        operator: Token,
+        right: &Expr
+    ) -> Self::Output {
+        let left = self.visit_expr(left)?;
 
-            match operator.kind {
-                TokenKind::Or if left.is_truthy() => return Ok(left),
-                TokenKind::And if !left.is_truthy() => return Ok(left),
-                _ => {}
-            };
+        match operator.kind {
+            TokenKind::Or if left.is_truthy() => return Ok(left),
+            TokenKind::And if !left.is_truthy() => return Ok(left),
+            _ => {}
+        };
 
-            self.evaluate(right)
-        } else {
-            Err(RuntimeError::UnexpectedExpression {
-                span: expr.span,
-                expected: "logical",
-                got: expr.name(),
-            })
+        self.visit_expr(right)
+    }
+
+    fn visit_set_expr(
+        &mut self,
+        span: Span,
+        object: &Expr,
+        name: Token,
+        symbol: Symbol,
+        value: &Expr
+    ) -> Self::Output {
+        todo!()
+    }
+
+    fn visit_super_expr(
+        &mut self,
+        span: Span,
+        keyword: Token,
+        method: Token,
+        symbol: Symbol
+    ) -> Self::Output {
+        todo!()
+    }
+
+    fn visit_this_expr(
+        &mut self,
+        span: Span,
+        keyword: Token,
+    ) -> Self::Output {
+        todo!()
+    }
+
+    fn visit_unary_expr(
+        &mut self,
+        span: Span,
+        operator: Token,
+        right: &Expr
+    ) -> Self::Output {
+        let right = self.visit_expr(right)?;
+
+        match operator.kind {
+            TokenKind::Minus => right.try_neg().map_err(|err| err.with_span(span)),
+
+            TokenKind::Bang => Ok(Value::Boolean(!right)),
+
+            x => Err(RuntimeError::UnexpectedToken {
+                span,
+                expected: "unary operator",
+                got: x,
+            }),
         }
     }
 
-    fn evaluate_unary(&mut self, expr: &Expr) -> Result<Value> {
-        if let ExprKind::Unary {
-            operator,
-            ref right,
-        } = expr.kind
-        {
-            let right = self.evaluate(right)?;
+    fn visit_variable_expr(
+        &mut self,
+        span: Span,
+        name: Token,
+        symbol: Symbol
+    ) -> Self::Output {
+        let var = self.sess.env_mut().get(symbol).map(|v| v.clone());
 
-            match operator.kind {
-                TokenKind::Minus => right.try_neg().map_err(|err| err.with_span(expr.span)),
-
-                TokenKind::Bang => Ok(Value::Boolean(!right)),
-
-                x => Err(RuntimeError::UnexpectedToken {
-                    span: expr.span,
-                    expected: "unary operator",
-                    got: x,
-                }),
+        match var {
+            Some(var) => Ok(var),
+            None => {
+                let var_name = self.sess.get(symbol);
+                Err(RuntimeError::UndefinedVariable {
+                    span: name.span,
+                    name: var_name.into(),
+                })
             }
-        } else {
-            Err(RuntimeError::UnexpectedExpression {
-                span: expr.span,
-                expected: "unary",
-                got: expr.name(),
-            })
         }
     }
+}
 
-    fn evaluate_variable(&mut self, expr: &Expr) -> Result<Value> {
-        if let ExprKind::Variable { name, symbol } = expr.kind {
-            let var = self.sess.env_mut().get(symbol).map(|v| v.clone());
+use crate::stmt::StmtVisitor;
 
-            match var {
-                Some(var) => Ok(var),
-                None => {
-                    let var_name = self.sess.get(symbol);
-                    Err(RuntimeError::UndefinedVariable {
-                        span: name.span,
-                        name: var_name.into(),
-                    })
-                }
+impl<'a> StmtVisitor for Interpreter<'a> {
+    type Output = Result<()>;
+
+    fn visit_block_stmt(
+        &mut self,
+        span: Span,
+        statements: &[Box<Stmt>]
+    ) -> Self::Output {
+        self.sess.env_mut().push_scope();
+
+        for s in statements {
+            if let Err(err) = self.visit_stmt(s) {
+                self.sess.env_mut().pop_scope();
+                return Err(err);
             }
-        } else {
-            Err(RuntimeError::UnexpectedExpression {
-                span: expr.span,
-                expected: "variable",
-                got: expr.name(),
-            })
         }
+
+        self.sess.env_mut().pop_scope();
+
+        Ok(())
     }
 
-    fn evaluate_binary(&mut self, expr: &Expr) -> Result<Value> {
-        if let ExprKind::Binary {
-            ref left,
-            operator,
-            ref right,
-        } = expr.kind
-        {
-            let left = self.evaluate(left)?;
-            let right = self.evaluate(right)?;
+    fn visit_class_stmt(
+        &mut self,
+        span: Span,
+        name: Token,
+        symbol: Symbol,
+        superclass: Option<&Box<Expr>>,
+        methods: &[Box<Stmt>]
+    ) -> Self::Output {
+        todo!()
+    }
 
-            match operator.kind {
-                TokenKind::Plus => left.try_add(right).map_err(|err| err.with_span(expr.span)),
+    fn visit_expression_stmt(
+        &mut self,
+        span: Span,
+        expression: &Expr
+    ) -> Self::Output {
+        self.visit_expr(expression)?;
+        Ok(())
+    }
 
-                TokenKind::Minus => left.try_sub(right).map_err(|err| err.with_span(expr.span)),
+    fn visit_function_stmt(
+        &mut self,
+        span: Span,
+        name: Token,
+        symbol: Symbol,
+        params: &[Token],
+        body: &[Box<Stmt>]
+    ) -> Self::Output {
+        todo!()
+    }
 
-                TokenKind::Slash => left.try_div(right).map_err(|err| err.with_span(expr.span)),
-
-                TokenKind::Star => left.try_mul(right).map_err(|err| err.with_span(expr.span)),
-
-                TokenKind::Greater => {
-                    // left > right
-                    let cmp = left
-                        .try_cmp(&right)
-                        .map_err(|err| err.with_span(expr.span))?;
-                    Ok(Value::Boolean(cmp == Ordering::Greater))
-                }
-
-                TokenKind::GreaterEqual => {
-                    // left >= right
-                    let cmp = left
-                        .try_cmp(&right)
-                        .map_err(|err| err.with_span(expr.span))?;
-                    Ok(Value::Boolean(
-                        cmp == Ordering::Greater || cmp == Ordering::Equal,
-                    ))
-                }
-
-                TokenKind::Less => {
-                    // left < right
-                    let cmp = left
-                        .try_cmp(&right)
-                        .map_err(|err| err.with_span(expr.span))?;
-                    Ok(Value::Boolean(cmp == Ordering::Less))
-                }
-
-                TokenKind::LessEqual => {
-                    // left <= right
-                    let cmp = left
-                        .try_cmp(&right)
-                        .map_err(|err| err.with_span(expr.span))?;
-                    Ok(Value::Boolean(
-                        cmp == Ordering::Less || cmp == Ordering::Equal,
-                    ))
-                }
-
-                TokenKind::BangEqual => Ok(Value::Boolean(left != right)),
-
-                TokenKind::EqualEqual => Ok(Value::Boolean(left == right)),
-
-                x => Err(RuntimeError::UnexpectedToken {
-                    span: expr.span,
-                    expected: "binary operator",
-                    got: x,
-                }),
-            }
-        } else {
-            Err(RuntimeError::UnexpectedExpression {
-                span: expr.span,
-                expected: "binary",
-                got: expr.name(),
-            })
+    fn visit_if_stmt(
+        &mut self,
+        span: Span,
+        condition: &Expr,
+        then_branch: &Stmt,
+        else_branch: Option<&Box<Stmt>>
+    ) -> Self::Output {
+        if self.visit_expr(condition)?.is_truthy() {
+            self.visit_stmt(then_branch)?;
+        } else if let Some(else_branch) = else_branch {
+            self.visit_stmt(else_branch)?;
         }
+
+        Ok(())
+    }
+
+    fn visit_print_stmt(
+        &mut self,
+        span: Span,
+        expression: &Expr
+    ) -> Self::Output {
+        let value = self.visit_expr(expression)?;
+        println!("{}", value);
+        Ok(())
+    }
+
+    fn visit_return_stmt(
+        &mut self,
+        span: Span,
+        keyword: Token,
+        value: &Expr
+    ) -> Self::Output {
+        todo!()
+    }
+
+    fn visit_var_stmt(
+        &mut self,
+        span: Span,
+        name: Token,
+        symbol: Symbol,
+        initializer: Option<&Box<Expr>>
+    ) -> Self::Output {
+        // FIXME: not optimal as we first evaluate and then check if the var even exists.
+        let value = match initializer {
+            Some(initializer) => self.visit_expr(initializer)?,
+            None => Value::Nil,
+        };
+
+        self.sess.env_mut().define(symbol, value);
+        Ok(())
+    }
+
+    fn visit_while_stmt(
+        &mut self,
+        span: Span,
+        condition: &Expr,
+        body: &Stmt
+    ) -> Self::Output {
+        while self.visit_expr(condition)?.is_truthy() {
+            self.visit_stmt(body)?;
+        }
+
+        Ok(())
     }
 }
