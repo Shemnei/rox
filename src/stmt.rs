@@ -25,11 +25,13 @@ pub enum StmtKind {
     //    body: Vec<Box<Stmt>>,
     //},
 
-    //If {
-    //    condition: Box<Expr>,
-    //    then_branch: Box<Stmt>,
-    //    else_branch: Option<Box<Stmt>>,
-    //},
+    /// If statement e.g. `if (2 == 2) .. else .. `
+    If {
+        condition: Box<Expr>,
+        then_branch: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>,
+    },
+
     /// Print statement e.g. `print "Hello"`.
     Print {
         expression: Box<Expr>,
@@ -46,10 +48,12 @@ pub enum StmtKind {
         symbol: Symbol,
         initializer: Option<Box<Expr>>,
     },
-    //While {
-    //    condition: Box<Expr>,
-    //    body: Box<Stmt>,
-    //},
+
+    /// While loop e.g. `while (true) { .. }`
+    While {
+        condition: Box<Expr>,
+        body: Box<Stmt>,
+    },
 }
 
 impl StmtKind {
@@ -57,8 +61,10 @@ impl StmtKind {
         match self {
             Self::Block { .. } => "Block",
             Self::Expression { .. } => "Expression",
+            Self::If { .. } => "If",
             Self::Print { .. } => "Print",
             Self::Var { .. } => "Var",
+            Self::While { .. } => "While",
         }
     }
 }

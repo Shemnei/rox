@@ -1,9 +1,9 @@
-var x = 10;
-var y = 20;
-print "x";
-print x;
-print "y";
-print y;
-var z = x * y;
-print "x + y = ";
-print z;
+var a = 0;
+var b = 1;
+
+while (a < 10000) {
+  print a;
+  var temp = a;
+  a = b;
+  b = temp + b;
+}

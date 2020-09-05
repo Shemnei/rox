@@ -36,11 +36,12 @@ pub enum ExprKind {
     /// Literal value like numbers, strings, booleans and `nil` e.g. `2`.
     Literal { value: Token, symbol: Symbol },
 
-    //Logical {
-    //    left: Box<Expr>,
-    //    operator: Span<Token>,
-    //    right: Box<Expr>,
-    //},
+    /// Logical operators like `and` and `or` e.g. `true or false`.
+    Logical {
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
+    },
 
     //Set {
     //    object: Box<Expr>,
@@ -70,6 +71,7 @@ impl ExprKind {
             Self::Binary { .. } => "Binary",
             Self::Grouping { .. } => "Grouping",
             Self::Literal { .. } => "Literal",
+            Self::Logical { .. } => "Logical",
             Self::Unary { .. } => "Unary",
             Self::Variable { .. } => "Variable",
         }
@@ -108,6 +110,8 @@ fn span(kind: &ExprKind) -> Span {
         ExprKind::Grouping { expression } => expression.span,
 
         ExprKind::Literal { value, .. } => value.span,
+
+        ExprKind::Logical { left, right, .. } => left.span.union(right.span),
 
         ExprKind::Unary { operator, right } => operator.span.union(right.span),
 

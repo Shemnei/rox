@@ -370,8 +370,10 @@ impl<'a> Interpreter<'a> {
         match stmt.kind {
             StmtKind::Block { .. } => self.execute_block(stmt),
             StmtKind::Expression { .. } => self.execute_expression(stmt),
+            StmtKind::If { .. } => self.execute_if(stmt),
             StmtKind::Print { .. } => self.execute_print(stmt),
             StmtKind::Var { .. } => self.execute_var(stmt),
+            StmtKind::While { .. } => self.execute_while(stmt),
             _ => Err(RuntimeError::UnexpectedStatement {
                 span: stmt.span,
                 expected: "any",
@@ -416,6 +418,23 @@ impl<'a> Interpreter<'a> {
         }
     }
 
+    fn execute_if(&mut self, stmt: &Stmt) -> Result<()> {
+        if let StmtKind::If { ref condition, ref then_branch, ref else_branch } = stmt.kind {
+            if self.evaluate(condition)?.is_truthy() {
+                self.execute(then_branch)?;
+            } else if let Some(else_branch) = else_branch {
+                self.execute(else_branch)?;
+            }
+            Ok(())
+        } else {
+            Err(RuntimeError::UnexpectedStatement {
+                span: stmt.span,
+                expected: "if",
+                got: stmt.name(),
+            })
+        }
+    }
+
     fn execute_print(&mut self, stmt: &Stmt) -> Result<()> {
         if let StmtKind::Print { ref expression } = stmt.kind {
             let value = self.evaluate(expression)?;
@@ -454,10 +473,31 @@ impl<'a> Interpreter<'a> {
         }
     }
 
+    fn execute_while(&mut self, stmt: &Stmt) -> Result<()> {
+        if let StmtKind::While {
+            ref condition,
+            ref body,
+        } = stmt.kind
+        {
+            while self.evaluate(condition)?.is_truthy() {
+                self.execute(body)?;
+            }
+
+            Ok(())
+        } else {
+            Err(RuntimeError::UnexpectedStatement {
+                span: stmt.span,
+                expected: "while",
+                got: stmt.name(),
+            })
+        }
+    }
+
     fn evaluate(&mut self, expr: &Expr) -> Result<Value> {
         match expr.kind {
             ExprKind::Assign { .. } => self.evaluate_assign(expr),
             ExprKind::Literal { .. } => self.evaluate_literal(expr),
+            ExprKind::Logical { .. } => self.evaluate_logical(expr),
             ExprKind::Unary { .. } => self.evaluate_unary(expr),
             ExprKind::Variable { .. } => self.evaluate_variable(expr),
             ExprKind::Binary { .. } => self.evaluate_binary(expr),
@@ -526,6 +566,31 @@ impl<'a> Interpreter<'a> {
             Err(RuntimeError::UnexpectedExpression {
                 span: expr.span,
                 expected: "literal",
+                got: expr.name(),
+            })
+        }
+    }
+
+    fn evaluate_logical(&mut self, expr: &Expr) -> Result<Value> {
+        if let ExprKind::Logical {
+            ref left,
+            operator,
+            ref right,
+        } = expr.kind
+        {
+            let left = self.evaluate(left)?;
+
+            match operator.kind {
+                TokenKind::Or if left.is_truthy() => return Ok(left),
+                TokenKind::And if !left.is_truthy() => return Ok(left),
+                _ => {}
+            };
+
+            self.evaluate(right)
+        } else {
+            Err(RuntimeError::UnexpectedExpression {
+                span: expr.span,
+                expected: "logical",
                 got: expr.name(),
             })
         }

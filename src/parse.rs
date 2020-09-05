@@ -226,8 +226,14 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Option<Result<Stmt>> {
-        if some_matches!(self.peek(), TokenKind::Print) {
+        if some_matches!(self.peek(), TokenKind::For) {
+            self.for_statement()
+        } else if some_matches!(self.peek(), TokenKind::If) {
+            self.if_statement()
+        } else if some_matches!(self.peek(), TokenKind::Print) {
             self.print_statement()
+        } else if some_matches!(self.peek(), TokenKind::While) {
+            self.while_statement()
         } else if some_matches!(self.peek(), TokenKind::LeftBrace) {
             let (span, statments) = unwrap!(self.block());
             return Some(Ok(Stmt {
@@ -239,14 +245,139 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn print_statement(&mut self) -> Option<Result<Stmt>> {
-        let _ = unwrap!(self.expect(TokenKind::Print));
-        let expr = unwrap!(self.expression());
-        let _ = unwrap!(self.expect(TokenKind::Semicolon));
+    fn for_statement(&mut self) -> Option<Result<Stmt>> {
+        let start = unwrap!(self.expect(TokenKind::For));
+        let _ = unwrap!(self.expect(TokenKind::LeftParen));
 
-        let span = expr.span.add_high(1u32.into());
+        let next = self.peek().expect("valid token");
+        // All branches remove the semicolon.
+        let initializer = match next.kind {
+            TokenKind::Semicolon => {
+                unwrap!(self.expect(TokenKind::Semicolon));
+                None
+            },
+            TokenKind::Var => Some(unwrap!(self.var_declaration())),
+            _ => Some(unwrap!(self.expression_statement())),
+        };
+
+        let next = self.peek().expect("valid token");
+        let condition = match next.kind {
+            TokenKind::Semicolon => None,
+            _ => Some(unwrap!(self.expression())),
+        };
+        unwrap!(self.expect(TokenKind::Semicolon));
+
+        let next = self.peek().expect("valid token");
+        let increment = match next.kind {
+            TokenKind::RightParen => None,
+            _ => Some(unwrap!(self.expression())),
+        };
+
+        let _ = unwrap!(self.expect(TokenKind::RightParen));
+
+        let mut body = unwrap!(self.statement());
+
+        // unroll
+        let span = start.span.union(body.span);
+
+        // increment
+        if let Some(increment) = increment {
+            let inc_span = increment.span;
+            let inc_kind = StmtKind::Expression {
+                expression: increment.into(),
+            };
+
+            let kind = StmtKind::Block {
+                statments: vec![body.into(), Stmt { span: inc_span, kind: inc_kind }.into()],
+            };
+
+            body = Stmt { span, kind };
+        }
+
+        // condition
+        let condition = match condition {
+            Some(condition) => condition,
+            None => {
+                let mut interner = self.sess.int_mut();
+                let kind = ExprKind::Literal {
+                    value: Token {
+                        // TODO: no dummy span
+                        span: Span::DUMMY,
+                        kind: TokenKind::True
+                    },
+                    symbol: interner.intern("true"),
+                };
+                Expr::new(kind)
+            },
+        };
+
+        let kind = StmtKind::While {
+            condition: condition.into(),
+            body: body.into(),
+        };
+
+        body = Stmt { span, kind };
+
+        // initializer
+        if let Some(initializer) = initializer {
+            let kind = StmtKind::Block {
+                statments: vec![initializer.into(), body.into()],
+            };
+
+            body = Stmt { span, kind };
+        }
+
+        Some(Ok(body))
+    }
+
+    fn if_statement(&mut self) -> Option<Result<Stmt>> {
+        let start = unwrap!(self.expect(TokenKind::If));
+        let _ = unwrap!(self.expect(TokenKind::LeftParen));
+        let condition = unwrap!(self.expression());
+        let _ = unwrap!(self.expect(TokenKind::RightParen));
+
+        let then_branch = unwrap!(self.statement());
+        let (else_branch, end): (Option<Box<Stmt>>, Span) = if some_matches!(self.peek(), TokenKind::Else) {
+            let _ = unwrap!(self.expect(TokenKind::Else));
+            let stmt = unwrap!(self.statement());
+            let span = stmt.span;
+            (Some(stmt.into()), span)
+        } else {
+            (None, then_branch.span)
+        };
+
+        let span = start.span.union(end);
+        let kind = StmtKind::If {
+            condition: condition.into(),
+            then_branch: then_branch.into(),
+            else_branch,
+        };
+        Some(Ok(Stmt { span, kind }))
+    }
+
+    fn print_statement(&mut self) -> Option<Result<Stmt>> {
+        let start = unwrap!(self.expect(TokenKind::Print));
+        let expr = unwrap!(self.expression());
+        let end = unwrap!(self.expect(TokenKind::Semicolon));
+
+        let span = start.span.union(end.span);
         let kind = StmtKind::Print {
             expression: expr.into(),
+        };
+        Some(Ok(Stmt { span, kind }))
+    }
+
+    fn while_statement(&mut self) -> Option<Result<Stmt>> {
+        let start = unwrap!(self.expect(TokenKind::While));
+        let _ = unwrap!(self.expect(TokenKind::LeftParen));
+        let condition = unwrap!(self.expression());
+        let _ = unwrap!(self.expect(TokenKind::RightParen));
+        let body = unwrap!(self.statement());
+
+        let span = start.span.union(body.span);
+        let kind = StmtKind::While {
+            condition: condition.into(),
+            body: body.into(),
         };
         Some(Ok(Stmt { span, kind }))
     }
@@ -281,10 +412,10 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&mut self) -> Option<Result<Expr>> {
-        let expr = unwrap!(self.equality());
+        let expr = unwrap!(self.or());
 
         if some_matches!(self.peek(), TokenKind::Equal) {
-            let _ = self.expect(TokenKind::Equal).expect("a valid equal token");
+            let _ = self.expect(TokenKind::Equal)?;
             let value = unwrap!(self.assignment());
 
             return match expr {
@@ -307,12 +438,48 @@ impl<'a> Parser<'a> {
         Some(Ok(expr))
     }
 
+    fn or(&mut self) -> Option<Result<Expr>> {
+        let mut expr = unwrap!(self.and());
+
+        if some_matches!(self.peek(), TokenKind::Or) {
+            // consume operator
+            let operator = unwrap!(self.expect(TokenKind::Or));
+            let right: Expr = expect_token!(self.and());
+            let kind = ExprKind::Logical {
+                left: expr.into(),
+                operator,
+                right: right.into(),
+            };
+            expr = Expr::new(kind);
+        }
+
+        Some(Ok(expr))
+    }
+
+    fn and(&mut self) -> Option<Result<Expr>> {
+        let mut expr = unwrap!(self.equality());
+
+        if some_matches!(self.peek(), TokenKind::And) {
+            // consume operator
+            let operator = unwrap!(self.expect(TokenKind::And));
+            let right: Expr = expect_token!(self.equality());
+            let kind = ExprKind::Logical {
+                left: expr.into(),
+                operator,
+                right: right.into(),
+            };
+            expr = Expr::new(kind);
+        }
+
+        Some(Ok(expr))
+    }
+
     fn equality(&mut self) -> Option<Result<Expr>> {
         let mut expr = unwrap!(self.comparison());
 
         while some_matches!(self.peek(), TokenKind::BangEqual | TokenKind::EqualEqual) {
             // consume operator
-            let operator = self.consume().expect("valid operator token");
+            let operator = self.consume().expect("valid equality operator token");
             let right: Expr = expect_token!(self.comparison());
             let kind = ExprKind::Binary {
                 left: expr.into(),
@@ -333,7 +500,7 @@ impl<'a> Parser<'a> {
             TokenKind::Greater | TokenKind::GreaterEqual | TokenKind::Less | TokenKind::LessEqual
         ) {
             // consume operator
-            let operator = self.consume().expect("valid operator token");
+            let operator = self.consume().expect("valid comparison operator token");
             let right = expect_token!(self.addition());
             let kind = ExprKind::Binary {
                 left: expr.into(),
@@ -351,7 +518,7 @@ impl<'a> Parser<'a> {
 
         while some_matches!(self.peek(), TokenKind::Plus | TokenKind::Minus) {
             // consume operator
-            let operator = self.consume().expect("valid operator token");
+            let operator = self.consume().expect("valid addition operator token");
             let right = expect_token!(self.multiplication());
             let kind = ExprKind::Binary {
                 left: expr.into(),
@@ -369,7 +536,7 @@ impl<'a> Parser<'a> {
 
         while some_matches!(self.peek(), TokenKind::Slash | TokenKind::Star) {
             // consume operatorcurly-braced block statement that defines a local scope
-            let operator = self.consume().expect("valid operator token");
+            let operator = self.consume().expect("valid multiplication operator token");
             let right = expect_token!(self.unary());
             let kind = ExprKind::Binary {
                 left: expr.into(),
@@ -385,7 +552,7 @@ impl<'a> Parser<'a> {
     fn unary(&mut self) -> Option<Result<Expr>> {
         if some_matches!(self.peek(), TokenKind::Bang | TokenKind::Minus) {
             // consume operator
-            let operator = self.consume().expect("valid operator token");
+            let operator = self.consume().expect("valid unary operator token");
             let right = expect_token!(self.unary());
             let kind = ExprKind::Unary {
                 operator,

@@ -32,6 +32,10 @@ impl Session {
         self.src.borrow_mut()
     }
 
+    pub fn int_mut(&self) -> RefMut<'_, Interner> {
+        self.int.borrow_mut()
+    }
+
     pub fn env_mut(&self) -> RefMut<'_, Environment> {
         self.env.borrow_mut()
     }
