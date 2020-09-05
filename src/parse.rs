@@ -255,7 +255,7 @@ impl<'a> Parser<'a> {
             TokenKind::Semicolon => {
                 unwrap!(self.expect(TokenKind::Semicolon));
                 None
-            },
+            }
             TokenKind::Var => Some(unwrap!(self.var_declaration())),
             _ => Some(unwrap!(self.expression_statement())),
         };
@@ -288,7 +288,14 @@ impl<'a> Parser<'a> {
             };
 
             let kind = StmtKind::Block {
-                statments: vec![body.into(), Stmt { span: inc_span, kind: inc_kind }.into()],
+                statments: vec![
+                    body.into(),
+                    Stmt {
+                        span: inc_span,
+                        kind: inc_kind,
+                    }
+                    .into(),
+                ],
             };
 
             body = Stmt { span, kind };
@@ -303,12 +310,12 @@ impl<'a> Parser<'a> {
                     value: Token {
                         // TODO: no dummy span
                         span: Span::DUMMY,
-                        kind: TokenKind::True
+                        kind: TokenKind::True,
                     },
                     symbol: interner.intern("true"),
                 };
                 Expr::new(kind)
-            },
+            }
         };
 
         let kind = StmtKind::While {
@@ -337,14 +344,15 @@ impl<'a> Parser<'a> {
         let _ = unwrap!(self.expect(TokenKind::RightParen));
 
         let then_branch = unwrap!(self.statement());
-        let (else_branch, end): (Option<Box<Stmt>>, Span) = if some_matches!(self.peek(), TokenKind::Else) {
-            let _ = unwrap!(self.expect(TokenKind::Else));
-            let stmt = unwrap!(self.statement());
-            let span = stmt.span;
-            (Some(stmt.into()), span)
-        } else {
-            (None, then_branch.span)
-        };
+        let (else_branch, end): (Option<Box<Stmt>>, Span) =
+            if some_matches!(self.peek(), TokenKind::Else) {
+                let _ = unwrap!(self.expect(TokenKind::Else));
+                let stmt = unwrap!(self.statement());
+                let span = stmt.span;
+                (Some(stmt.into()), span)
+            } else {
+                (None, then_branch.span)
+            };
 
         let span = start.span.union(end);
         let kind = StmtKind::If {

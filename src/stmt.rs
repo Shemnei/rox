@@ -24,7 +24,6 @@ pub enum StmtKind {
     //    params: Vec<Spanned<Token>>,
     //    body: Vec<Box<Stmt>>,
     //},
-
     /// If statement e.g. `if (2 == 2) .. else .. `
     If {
         condition: Box<Expr>,

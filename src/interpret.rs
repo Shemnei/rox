@@ -419,7 +419,12 @@ impl<'a> Interpreter<'a> {
     }
 
     fn execute_if(&mut self, stmt: &Stmt) -> Result<()> {
-        if let StmtKind::If { ref condition, ref then_branch, ref else_branch } = stmt.kind {
+        if let StmtKind::If {
+            ref condition,
+            ref then_branch,
+            ref else_branch,
+        } = stmt.kind
+        {
             if self.evaluate(condition)?.is_truthy() {
                 self.execute(then_branch)?;
             } else if let Some(else_branch) = else_branch {
