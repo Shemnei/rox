@@ -5,81 +5,74 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub enum StmtKind {
-    /// Curly-braced block statement that defines a local scope e.g. `{ .. }`.
-    Block { statments: Vec<Box<Stmt>> },
+	/// Curly-braced block statement that defines a local scope e.g. `{ .. }`.
+	Block { statments: Vec<Box<Stmt>> },
 
-    /// Class declaration e.g. `class Test ...`.
-    Class {
-        name: Token,
-        symbol: Symbol,
-        superclass: Option<Box<Expr>>,
-        methods: Vec<Box<Stmt>>,
-    },
+	/// Class declaration e.g. `class Test ...`.
+	Class {
+		name: Token,
+		symbol: Symbol,
+		superclass: Option<Box<Expr>>,
+		methods: Vec<Box<Stmt>>,
+	},
 
-    /// An expression e.g. `2 + 2`.
-    Expression { expression: Box<Expr> },
+	/// An expression e.g. `2 + 2`.
+	Expression { expression: Box<Expr> },
 
-    /// Function declaration e.g. `hello_world() { .. }`.
-    Function {
-        name: Token,
-        symbol: Symbol,
-        params: Vec<Token>,
-        body: Vec<Box<Stmt>>,
-    },
+	/// Function declaration e.g. `hello_world() { .. }`.
+	Function {
+		name: Token,
+		symbol: Symbol,
+		params: Vec<Token>,
+		body: Vec<Box<Stmt>>,
+	},
 
-    /// If statement e.g. `if (2 == 2) print x; else print y;`.
-    If {
-        condition: Box<Expr>,
-        then_branch: Box<Stmt>,
-        else_branch: Option<Box<Stmt>>,
-    },
+	/// If statement e.g. `if (2 == 2) print x; else print y;`.
+	If {
+		condition: Box<Expr>,
+		then_branch: Box<Stmt>,
+		else_branch: Option<Box<Stmt>>,
+	},
 
-    /// Print statement e.g. `print "Hello"`.
-    Print { expression: Box<Expr> },
+	/// Print statement e.g. `print "Hello"`.
+	Print { expression: Box<Expr> },
 
-    /// Return statement e.g. `return 2;`.
-    Return { keyword: Token, value: Box<Expr> },
+	/// Return statement e.g. `return 2;`.
+	Return { keyword: Token, value: Option<Box<Expr>> },
 
-    /// Variable declaration e.g. `var x = 2`.
-    Var {
-        name: Token,
-        symbol: Symbol,
-        initializer: Option<Box<Expr>>,
-    },
+	/// Variable declaration e.g. `var x = 2`.
+	Var { name: Token, symbol: Symbol, initializer: Option<Box<Expr>> },
 
-    /// While loop e.g. `while (true) { .. }`.
-    While {
-        condition: Box<Expr>,
-        body: Box<Stmt>,
-    },
+	/// While loop e.g. `while (true) { .. }`.
+	While { condition: Box<Expr>, body: Box<Stmt> },
 }
 
 impl StmtKind {
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::Block { .. } => "Block",
-            Self::Class { .. } => "Class",
-            Self::Expression { .. } => "Expression",
-            Self::Function { .. } => "Function",
-            Self::If { .. } => "If",
-            Self::Print { .. } => "Print",
-            Self::Return { .. } => "Return",
-            Self::Var { .. } => "Var",
-            Self::While { .. } => "While",
-        }
-    }
+	pub fn name(&self) -> &'static str {
+		match self {
+			Self::Block { .. } => "Block",
+			Self::Class { .. } => "Class",
+			Self::Expression { .. } => "Expression",
+			Self::Function { .. } => "Function",
+			Self::If { .. } => "If",
+			Self::Print { .. } => "Print",
+			Self::Return { .. } => "Return",
+			Self::Var { .. } => "Var",
+			Self::While { .. } => "While",
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
 pub struct Stmt {
-    pub span: Span,
-    pub kind: StmtKind,
+	pub span: Span,
+	pub kind: StmtKind,
 }
 
 impl Stmt {
-    pub fn name(&self) -> &'static str {
-        self.kind.name()
-    }
+	pub fn name(&self) -> &'static str {
+		self.kind.name()
+	}
 }
 
 #[rustfmt::skip]
@@ -144,7 +137,7 @@ pub trait StmtVisitor {
                     keyword,
                     ref value,
                 },
-            } => self.visit_return_stmt(span, keyword, value),
+            } => self.visit_return_stmt(span, keyword, value.as_ref()),
 
             Stmt {
                 span,
@@ -213,7 +206,7 @@ pub trait StmtVisitor {
         &mut self,
         span: Span,
         keyword: Token,
-        value: &Expr
+        value: Option<&Box<Expr>>
     ) -> Self::Output;
 
     fn visit_var_stmt(
