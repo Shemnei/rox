@@ -14,124 +14,126 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug)]
 pub struct Session {
-    pub(crate) src: RefCell<Source>,
-    pub(crate) int: RefCell<Interner>,
-    pub(crate) env: RefCell<Environment>,
+	pub(crate) src: RefCell<Source>,
+	pub(crate) int: RefCell<Interner>,
+	pub(crate) env: RefCell<Environment>,
 }
 
 impl Session {
-    pub fn new(source: Source, interner: Interner, environment: Environment) -> Self {
-        Self {
-            src: RefCell::new(source),
-            int: RefCell::new(interner),
-            env: RefCell::new(environment),
-        }
-    }
+	pub fn new(
+		source: Source,
+		interner: Interner,
+		environment: Environment,
+	) -> Self {
+		Self {
+			src: RefCell::new(source),
+			int: RefCell::new(interner),
+			env: RefCell::new(environment),
+		}
+	}
 
-    pub fn src_mut(&self) -> RefMut<'_, Source> {
-        self.src.borrow_mut()
-    }
+	pub fn src_mut(&self) -> RefMut<'_, Source> {
+		self.src.borrow_mut()
+	}
 
-    pub fn int_mut(&self) -> RefMut<'_, Interner> {
-        self.int.borrow_mut()
-    }
+	pub fn int_mut(&self) -> RefMut<'_, Interner> {
+		self.int.borrow_mut()
+	}
 
-    pub fn env_mut(&self) -> RefMut<'_, Environment> {
-        self.env.borrow_mut()
-    }
+	pub fn env_mut(&self) -> RefMut<'_, Environment> {
+		self.env.borrow_mut()
+	}
 
-    pub fn intern(&mut self, span: Span) -> Option<Symbol> {
-        let src = self.src.borrow();
-        Some(self.int.borrow_mut().intern(src.resolve(span)?))
-    }
+	pub fn intern(&mut self, span: Span) -> Option<Symbol> {
+		let src = self.src.borrow();
+		Some(self.int.borrow_mut().intern(src.resolve(span)?))
+	}
 
-    pub fn get(&mut self, symbol: Symbol) -> &'static str {
-        self.int.borrow().get(symbol)
-    }
+	pub fn get(&mut self, symbol: Symbol) -> &'static str {
+		self.int.borrow().get(symbol)
+	}
 }
 
 impl Default for Session {
-    fn default() -> Self {
-        Self {
-            src: RefCell::new(Source::new()),
-            int: RefCell::new(Interner::with_keywords()),
-            env: RefCell::new(Environment::new()),
-        }
-    }
+	fn default() -> Self {
+		Self {
+			src: RefCell::new(Source::new()),
+			int: RefCell::new(Interner::with_keywords()),
+			env: RefCell::new(Environment::new()),
+		}
+	}
 }
 
 #[derive(Debug, Default)]
 pub struct Rox {
-    sess: Session,
+	sess: Session,
 }
 
 impl Rox {
-    pub fn new() -> Self {
-        Self {
-            sess: Session::default(),
-        }
-    }
+	pub fn new() -> Self {
+		Self { sess: Session::default() }
+	}
 
-    pub fn run_repl(&mut self) -> Result<()> {
-        let input = std::io::stdin();
-        let mut input = input.lock();
-        let mut output = std::io::stdout();
+	pub fn run_repl(&mut self) -> Result<()> {
+		let input = std::io::stdin();
+		let mut input = input.lock();
+		let mut output = std::io::stdout();
 
-        let mut buffer = String::new();
-        loop {
-            write!(&mut output, "> ")?;
-            output.flush()?;
+		let mut buffer = String::new();
+		loop {
+			write!(&mut output, "> ")?;
+			output.flush()?;
 
-            if input.read_line(&mut buffer)? == 0 {
-                break Ok(());
-            }
-            if let Err(err) = self.run(buffer.clone()) {
-                eprintln!("{:?}", err);
-            }
+			if input.read_line(&mut buffer)? == 0 {
+				break Ok(());
+			}
+			if let Err(err) = self.run(buffer.clone()) {
+				eprintln!("{:?}", err);
+			}
 
-            buffer.clear();
-        }
-    }
+			buffer.clear();
+		}
+	}
 
-    pub fn run_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
-        let bytes = std::fs::read(path)?;
-        self.run(String::from_utf8(bytes)?)
-    }
+	pub fn run_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+		let bytes = std::fs::read(path)?;
+		self.run(String::from_utf8(bytes)?)
+	}
 
-    fn run(&mut self, source: String) -> Result<()> {
-        let scanner = Lexer::new(&source);
-        let tokens = scanner.collect::<Vec<_>>();
+	fn run(&mut self, source: String) -> Result<()> {
+		let scanner = Lexer::new(&source);
+		let tokens = scanner.collect::<Vec<_>>();
 
-        for token in tokens.iter() {
-            eprintln!("{:?}: |{}|", token, &source.as_str()[token.span]);
-        }
+		//for token in tokens.iter() {
+		//    eprintln!("{:?}: |{}|", token, &source.as_str()[token.span]);
+		//}
 
-        //let mut parser = Parser::new(&tokens);
+		//let mut parser = Parser::new(&tokens);
 
-        //if let Some(expr) = parser.parse() {
-        //    eprintln!("{:#?}", expr);
-        //    let mut out = String::new();
-        //    pretty_fmt(&mut out, &expr, source);
-        //    eprintln!("{}", out);
-        //} else {
-        //    println!("No expression");
-        //}
+		//if let Some(expr) = parser.parse() {
+		//    eprintln!("{:#?}", expr);
+		//    let mut out = String::new();
+		//    pretty_fmt(&mut out, &expr, source);
+		//    eprintln!("{}", out);
+		//} else {
+		//    println!("No expression");
+		//}
 
-        self.sess.src_mut().add(source);
+		self.sess.src_mut().add(source);
 
-        let parser = Parser::new(&mut self.sess, &tokens);
-        let stmt = parser.collect::<Vec<_>>();
-        let mut interpreter = Interpreter::new(&mut self.sess);
+		let parser = Parser::new(&mut self.sess, &tokens);
+		let stmt = parser.collect::<Vec<_>>();
+		let mut interpreter = Interpreter::new(&mut self.sess);
 
-        if let Err(err) = interpreter.interpret(stmt.into_iter()) {
-            eprintln!("{}", err);
-            //std::process::exit(70);
-        }
+		if let Err(err) = interpreter.interpret(stmt.into_iter()) {
+			eprintln!("{}", err);
+			//std::process::exit(70);
+		}
 
-        //for token in scanner {
-        //    println!("{:?}: |{}|", token, &source[token.span]);
-        //}
+		//for token in scanner {
+		//    println!("{:?}: |{}|", token, &source[token.span]);
+		//}
 
-        Ok(())
-    }
+		Ok(())
+	}
 }

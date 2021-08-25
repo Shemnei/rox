@@ -1,5 +1,3 @@
-#![feature(or_patterns, const_fn)]
-
 // TODO: all extra challenges.
 
 pub mod env;

@@ -4,183 +4,148 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-    /// Variable assignment e.g. `x = 20`.
-    Assign {
-        name: Token,
-        symbol: Symbol,
-        value: Box<Expr>,
-    },
+	/// Variable assignment e.g. `x = 20`.
+	Assign { name: Token, symbol: Symbol, value: Box<Expr> },
 
-    /// Binary expression e.g. `2 + 2`.
-    /// Infix arithmetic: `+`, `-`, `*`, `/`.
-    /// Logic: `==`, `!=`, `<`, `<=`, `>`, `>=`.
-    Binary {
-        left: Box<Expr>,
-        operator: Token,
-        right: Box<Expr>,
-    },
+	/// Binary expression e.g. `2 + 2`.
+	/// Infix arithmetic: `+`, `-`, `*`, `/`.
+	/// Logic: `==`, `!=`, `<`, `<=`, `>`, `>=`.
+	Binary { left: Box<Expr>, operator: Token, right: Box<Expr> },
 
-    /// Call expression e.g. `hello_world()`.
-    Call {
-        callee: Box<Expr>,
-        arguments: Vec<Box<Expr>>,
-        // closing parentheses
-        paren: Token,
-    },
+	/// Call expression e.g. `hello_world()`.
+	Call {
+		callee: Box<Expr>,
+		arguments: Vec<Box<Expr>>,
+		// closing parentheses
+		paren: Token,
+	},
 
-    /// Getter expression e.g. `test.var`.
-    Get {
-        object: Box<Expr>,
-        name: Token,
-        symbol: Symbol,
-    },
+	/// Getter expression e.g. `test.var`.
+	Get { object: Box<Expr>, name: Token, symbol: Symbol },
 
-    /// Grouped expression with parentheses e.g. `(2)`.
-    Grouping { expression: Box<Expr> },
+	/// Grouped expression with parentheses e.g. `(2)`.
+	Grouping { expression: Box<Expr> },
 
-    /// Literal value like numbers, strings, booleans and `nil` e.g. `2`.
-    Literal { value: Token, symbol: Symbol },
+	/// Literal value like numbers, strings, booleans and `nil` e.g. `2`.
+	Literal { value: Token, symbol: Symbol },
 
-    /// Logical operators like `and` and `or` e.g. `true or false`.
-    Logical {
-        left: Box<Expr>,
-        operator: Token,
-        right: Box<Expr>,
-    },
+	/// Logical operators like `and` and `or` e.g. `true or false`.
+	Logical { left: Box<Expr>, operator: Token, right: Box<Expr> },
 
-    /// Setter expression e.g. `test.var = 2`.
-    Set {
-        object: Box<Expr>,
-        name: Token,
-        symbol: Symbol,
-        value: Box<Expr>,
-    },
+	/// Setter expression e.g. `test.var = 2`.
+	Set { object: Box<Expr>, name: Token, symbol: Symbol, value: Box<Expr> },
 
-    /// Super expression e.g. `super.hello_world()`.
-    Super {
-        keyword: Token,
-        method: Token,
-        symbol: Symbol,
-    },
+	/// Super expression e.g. `super.hello_world()`.
+	Super { keyword: Token, method: Token, symbol: Symbol },
 
-    /// Super expression e.g. `this.hello_world()`.
-    This {
-        keyword: Token,
-    },
+	/// Super expression e.g. `this.hello_world()`.
+	This { keyword: Token },
 
-    /// Unary expression like `!` and `-` e.g. `!2`.
-    Unary { operator: Token, right: Box<Expr> },
+	/// Unary expression like `!` and `-` e.g. `!2`.
+	Unary { operator: Token, right: Box<Expr> },
 
-    /// Variable access expressions e.g. `x`.
-    Variable { name: Token, symbol: Symbol },
+	/// Variable access expressions e.g. `x`.
+	Variable { name: Token, symbol: Symbol },
 }
 
 impl ExprKind {
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::Assign { .. } => "Assign",
-            Self::Binary { .. } => "Binary",
-            Self::Call { .. } => "Call",
-            Self::Get { .. } => "Get",
-            Self::Grouping { .. } => "Grouping",
-            Self::Literal { .. } => "Literal",
-            Self::Logical { .. } => "Logical",
-            Self::Set { .. } => "Set",
-            Self::Super { .. } => "Super",
-            Self::This { .. } => "This",
-            Self::Unary { .. } => "Unary",
-            Self::Variable { .. } => "Variable",
-        }
-    }
+	pub fn name(&self) -> &'static str {
+		match self {
+			Self::Assign { .. } => "Assign",
+			Self::Binary { .. } => "Binary",
+			Self::Call { .. } => "Call",
+			Self::Get { .. } => "Get",
+			Self::Grouping { .. } => "Grouping",
+			Self::Literal { .. } => "Literal",
+			Self::Logical { .. } => "Logical",
+			Self::Set { .. } => "Set",
+			Self::Super { .. } => "Super",
+			Self::This { .. } => "This",
+			Self::Unary { .. } => "Unary",
+			Self::Variable { .. } => "Variable",
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
 pub struct Expr {
-    pub span: Span,
-    pub kind: ExprKind,
+	pub span: Span,
+	pub kind: ExprKind,
 }
 
 impl Expr {
-    pub fn new(kind: ExprKind) -> Self {
-        Self {
-            span: span(&kind),
-            kind,
-        }
-    }
+	pub fn new(kind: ExprKind) -> Self {
+		Self { span: span(&kind), kind }
+	}
 
-    pub fn name(&self) -> &'static str {
-        self.kind.name()
-    }
+	pub fn name(&self) -> &'static str {
+		self.kind.name()
+	}
 }
 
 fn span(kind: &ExprKind) -> Span {
-    match kind {
-        ExprKind::Assign { name, value, .. } => name.span.union(value.span),
+	match kind {
+		ExprKind::Assign { name, value, .. } => name.span.union(value.span),
 
-        ExprKind::Binary { left, right, .. } => left.span.union(right.span),
+		ExprKind::Binary { left, right, .. } => left.span.union(right.span),
 
-        ExprKind::Call { callee, paren, .. } => callee.span.union(paren.span),
+		ExprKind::Call { callee, paren, .. } => callee.span.union(paren.span),
 
-        ExprKind::Get { object, name, .. } => object.span.union(name.span),
+		ExprKind::Get { object, name, .. } => object.span.union(name.span),
 
-        ExprKind::Grouping { expression } => expression.span,
+		ExprKind::Grouping { expression } => expression.span,
 
-        ExprKind::Literal { value, .. } => value.span,
+		ExprKind::Literal { value, .. } => value.span,
 
-        ExprKind::Logical { left, right, .. } => left.span.union(right.span),
+		ExprKind::Logical { left, right, .. } => left.span.union(right.span),
 
-        ExprKind::Set { object, value, .. } => object.span.union(value.span),
+		ExprKind::Set { object, value, .. } => object.span.union(value.span),
 
-        ExprKind::Super { keyword, method, .. } => keyword.span.union(method.span),
+		ExprKind::Super { keyword, method, .. } => {
+			keyword.span.union(method.span)
+		}
 
-        ExprKind::This { keyword } => keyword.span,
+		ExprKind::This { keyword } => keyword.span,
 
-        ExprKind::Unary { operator, right } => operator.span.union(right.span),
+		ExprKind::Unary { operator, right } => operator.span.union(right.span),
 
-        ExprKind::Variable { name, .. } => name.span,
-    }
+		ExprKind::Variable { name, .. } => name.span,
+	}
 }
 
 pub fn pretty_fmt(out: &mut String, expr: &Expr, source: &str) {
-    match &expr.kind {
-        ExprKind::Binary {
-            ref left,
-            operator,
-            ref right,
-        } => {
-            out.push('(');
-            out.push_str(&source[operator.span]);
-            out.push(' ');
-            pretty_fmt(out, left, source);
-            out.push(' ');
-            pretty_fmt(out, right, source);
-            out.push(')');
-        }
+	match &expr.kind {
+		ExprKind::Binary { ref left, operator, ref right } => {
+			out.push('(');
+			out.push_str(&source[operator.span]);
+			out.push(' ');
+			pretty_fmt(out, left, source);
+			out.push(' ');
+			pretty_fmt(out, right, source);
+			out.push(')');
+		}
 
-        ExprKind::Grouping { ref expression } => {
-            out.push('(');
-            out.push_str("group ");
-            pretty_fmt(out, expression, source);
-            out.push(')');
-        }
+		ExprKind::Grouping { ref expression } => {
+			out.push('(');
+			out.push_str("group ");
+			pretty_fmt(out, expression, source);
+			out.push(')');
+		}
 
-        ExprKind::Literal { value, .. } => {
-            out.push_str(&source[value.span]);
-        }
+		ExprKind::Literal { value, .. } => {
+			out.push_str(&source[value.span]);
+		}
 
-        ExprKind::Unary {
-            operator,
-            ref right,
-        } => {
-            out.push('(');
-            out.push_str(&source[operator.span]);
-            out.push(' ');
-            pretty_fmt(out, right, source);
-            out.push(')');
-        }
+		ExprKind::Unary { operator, ref right } => {
+			out.push('(');
+			out.push_str(&source[operator.span]);
+			out.push(' ');
+			pretty_fmt(out, right, source);
+			out.push(')');
+		}
 
-        _ => panic!("Unknown expr {}", expr.kind.name()),
-    }
+		_ => panic!("Unknown expr {}", expr.kind.name()),
+	}
 }
 
 #[rustfmt::skip]
