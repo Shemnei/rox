@@ -48,7 +48,7 @@ pub enum StmtKind {
 }
 
 impl StmtKind {
-	pub fn name(&self) -> &'static str {
+	pub const fn name(&self) -> &'static str {
 		match self {
 			Self::Block { .. } => "Block",
 			Self::Class { .. } => "Class",
@@ -70,7 +70,7 @@ pub struct Stmt {
 }
 
 impl Stmt {
-	pub fn name(&self) -> &'static str {
+	pub const fn name(&self) -> &'static str {
 		self.kind.name()
 	}
 }

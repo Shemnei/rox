@@ -20,7 +20,7 @@ pub struct Session {
 }
 
 impl Session {
-	pub fn new(
+	pub const fn new(
 		source: Source,
 		interner: Interner,
 		environment: Environment,
@@ -122,6 +122,8 @@ impl Rox {
 		self.sess.src_mut().add(source);
 
 		let parser = Parser::new(&mut self.sess, &tokens);
+		// Needs to be collected as the interpreter below needs mutable access to session.
+		#[allow(clippy::needless_collect)]
 		let stmt = parser.collect::<Vec<_>>();
 		let mut interpreter = Interpreter::new(&mut self.sess);
 

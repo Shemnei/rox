@@ -22,6 +22,7 @@ pub(crate) const KEYWORDS: &[(&str, TokenKind)] = &[
 
 const KEYWORD_MAX_LEN: usize = 6;
 
+#[derive(Debug)]
 pub struct Lexer<'a> {
 	source: &'a str,
 	cursor: Cursor<'a, u8>,
@@ -138,7 +139,7 @@ impl<'a> Lexer<'a> {
 		}
 	}
 
-	fn emit(&self, start: BytePos, kind: TokenKind) -> Token {
+	const fn emit(&self, start: BytePos, kind: TokenKind) -> Token {
 		Token { span: Span { low: start, high: self.current }, kind }
 	}
 
@@ -191,19 +192,19 @@ impl<'a> Lexer<'a> {
 		}
 	}
 
-	fn is_whitespace(b: u8) -> bool {
+	const fn is_whitespace(b: u8) -> bool {
 		b == b' ' || b == b'\t' || b == b'\n' || b == b'\r' || b == 0xc // form feed
 	}
 
-	fn is_digit(b: u8) -> bool {
+	const fn is_digit(b: u8) -> bool {
 		b >= b'0' && b <= b'9'
 	}
 
-	fn is_alpha(b: u8) -> bool {
+	const fn is_alpha(b: u8) -> bool {
 		b >= b'a' && b <= b'z' || b >= b'A' && b <= b'Z' || b == b'_'
 	}
 
-	fn is_alpha_numeric(b: u8) -> bool {
+	const fn is_alpha_numeric(b: u8) -> bool {
 		Self::is_alpha(b) || Self::is_digit(b)
 	}
 }
@@ -219,6 +220,7 @@ impl<'a> Iterator for Lexer<'a> {
 	}
 }
 
+#[derive(Debug)]
 pub(crate) struct Cursor<'a, T> {
 	source: &'a [T],
 	offset: usize,

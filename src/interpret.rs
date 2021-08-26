@@ -3,11 +3,11 @@ use std::fmt;
 use std::ops::*;
 
 use crate::env::Scope;
-use crate::expr::{Expr, ExprKind};
+use crate::expr::Expr;
 use crate::parse;
 use crate::rox::Session;
 use crate::span::Span;
-use crate::stmt::{Stmt, StmtKind};
+use crate::stmt::Stmt;
 use crate::token::TokenKind;
 
 type Result<T> = std::result::Result<T, RuntimeError>;
@@ -368,7 +368,7 @@ trait Callable {
 	fn arity(&self) -> usize;
 	fn call(
 		&mut self,
-		interpreter: &mut Interpreter,
+		interpreter: &mut Interpreter<'_>,
 		arguments: Vec<Value>,
 	) -> Result<Value>;
 }
@@ -396,7 +396,7 @@ impl Callable for Callables {
 
 	fn call(
 		&mut self,
-		interpreter: &mut Interpreter,
+		interpreter: &mut Interpreter<'_>,
 		arguments: Vec<Value>,
 	) -> Result<Value> {
 		match self {
@@ -406,7 +406,7 @@ impl Callable for Callables {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ClockNative;
 impl Callable for ClockNative {
 	fn name(&self) -> &'static str {
@@ -419,8 +419,8 @@ impl Callable for ClockNative {
 
 	fn call(
 		&mut self,
-		interpreter: &mut Interpreter,
-		arguments: Vec<Value>,
+		_interpreter: &mut Interpreter<'_>,
+		_arguments: Vec<Value>,
 	) -> Result<Value> {
 		use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -451,7 +451,7 @@ impl Callable for Function {
 
 	fn call(
 		&mut self,
-		interpreter: &mut Interpreter,
+		interpreter: &mut Interpreter<'_>,
 		mut arguments: Vec<Value>,
 	) -> Result<Value> {
 		interpreter.sess.env_mut().push(self.scope.clone());
@@ -538,7 +538,7 @@ impl<'a> ExprVisitor for Interpreter<'a> {
 
     fn visit_assign_expr(
         &mut self,
-        span: Span,
+        _span: Span,
         name: Token,
         symbol: Symbol,
         value: &Expr
@@ -628,7 +628,7 @@ impl<'a> ExprVisitor for Interpreter<'a> {
         span: Span,
         callee: &Expr,
         arguments: &[Box<Expr>],
-        paren: Token
+        _paren: Token
     ) -> Self::Output {
         if let Value::Callable(mut c) = self.visit_expr(callee)? {
             let mut argument_values: Vec<Value> = Vec::new();
@@ -651,18 +651,18 @@ impl<'a> ExprVisitor for Interpreter<'a> {
 
     fn visit_get_expr(
         &mut self,
-        span: Span,
-        object: &Expr,
-        name: Token,
-        symbol: Symbol
+        _span: Span,
+        _object: &Expr,
+        _name: Token,
+        _symbol: Symbol
     ) -> Self::Output {
         todo!()
     }
 
     fn visit_grouping_expr(
         &mut self,
-        span: Span,
-        expression: &Expr
+        _span: Span,
+        _expression: &Expr
     ) -> Self::Output {
         unimplemented!()
     }
@@ -700,7 +700,7 @@ impl<'a> ExprVisitor for Interpreter<'a> {
 
     fn visit_logical_expr(
         &mut self,
-        span: Span,
+        _span: Span,
         left: &Expr,
         operator: Token,
         right: &Expr
@@ -718,29 +718,29 @@ impl<'a> ExprVisitor for Interpreter<'a> {
 
     fn visit_set_expr(
         &mut self,
-        span: Span,
-        object: &Expr,
-        name: Token,
-        symbol: Symbol,
-        value: &Expr
+        _span: Span,
+        _object: &Expr,
+        _name: Token,
+        _symbol: Symbol,
+        _value: &Expr
     ) -> Self::Output {
         todo!()
     }
 
     fn visit_super_expr(
         &mut self,
-        span: Span,
-        keyword: Token,
-        method: Token,
-        symbol: Symbol
+        _span: Span,
+        _keyword: Token,
+        _method: Token,
+        _symbol: Symbol
     ) -> Self::Output {
         todo!()
     }
 
     fn visit_this_expr(
         &mut self,
-        span: Span,
-        keyword: Token,
+        _span: Span,
+        _keyword: Token,
     ) -> Self::Output {
         todo!()
     }
@@ -768,19 +768,18 @@ impl<'a> ExprVisitor for Interpreter<'a> {
 
     fn visit_variable_expr(
         &mut self,
-        span: Span,
+        _span: Span,
         name: Token,
         symbol: Symbol
     ) -> Self::Output {
-        let var = self.sess.env_mut().get(symbol).map(|v| v.clone());
+        let var = self.sess.env_mut().get(symbol);
 
         match var {
             Some(var) => Ok(var),
             None => {
-                let var_name = self.sess.get(symbol);
                 Err(RuntimeError::UndefinedVariable {
                     span: name.span,
-                    name: var_name.into(),
+                    name: self.sess.get(symbol),
                 })
             }
         }
@@ -794,7 +793,7 @@ impl<'a> StmtVisitor for Interpreter<'a> {
 
 	fn visit_block_stmt(
 		&mut self,
-		span: Span,
+		_span: Span,
 		statements: &[Box<Stmt>],
 	) -> Self::Output {
 		self.sess.env_mut().push_scope();
@@ -813,18 +812,18 @@ impl<'a> StmtVisitor for Interpreter<'a> {
 
 	fn visit_class_stmt(
 		&mut self,
-		span: Span,
-		name: Token,
-		symbol: Symbol,
-		superclass: Option<&Box<Expr>>,
-		methods: &[Box<Stmt>],
+		_span: Span,
+		_name: Token,
+		_symbol: Symbol,
+		_superclass: Option<&Box<Expr>>,
+		_methods: &[Box<Stmt>],
 	) -> Self::Output {
 		todo!()
 	}
 
 	fn visit_expression_stmt(
 		&mut self,
-		span: Span,
+		_span: Span,
 		expression: &Expr,
 	) -> Self::Output {
 		self.visit_expr(expression)?;
@@ -833,7 +832,7 @@ impl<'a> StmtVisitor for Interpreter<'a> {
 
 	fn visit_function_stmt(
 		&mut self,
-		span: Span,
+		_span: Span,
 		name: Token,
 		symbol: Symbol,
 		params: &[Token],
@@ -859,7 +858,7 @@ impl<'a> StmtVisitor for Interpreter<'a> {
 
 	fn visit_if_stmt(
 		&mut self,
-		span: Span,
+		_span: Span,
 		condition: &Expr,
 		then_branch: &Stmt,
 		else_branch: Option<&Box<Stmt>>,
@@ -875,7 +874,7 @@ impl<'a> StmtVisitor for Interpreter<'a> {
 
 	fn visit_print_stmt(
 		&mut self,
-		span: Span,
+		_span: Span,
 		expression: &Expr,
 	) -> Self::Output {
 		let value = self.visit_expr(expression)?;
@@ -885,8 +884,8 @@ impl<'a> StmtVisitor for Interpreter<'a> {
 
 	fn visit_return_stmt(
 		&mut self,
-		span: Span,
-		keyword: Token,
+		_span: Span,
+		_keyword: Token,
 		value: Option<&Box<Expr>>,
 	) -> Self::Output {
 		let value = match value {
@@ -899,8 +898,8 @@ impl<'a> StmtVisitor for Interpreter<'a> {
 
 	fn visit_var_stmt(
 		&mut self,
-		span: Span,
-		name: Token,
+		_span: Span,
+		_name: Token,
 		symbol: Symbol,
 		initializer: Option<&Box<Expr>>,
 	) -> Self::Output {
@@ -916,7 +915,7 @@ impl<'a> StmtVisitor for Interpreter<'a> {
 
 	fn visit_while_stmt(
 		&mut self,
-		span: Span,
+		_span: Span,
 		condition: &Expr,
 		body: &Stmt,
 	) -> Self::Output {

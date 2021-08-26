@@ -49,7 +49,7 @@ pub enum ExprKind {
 }
 
 impl ExprKind {
-	pub fn name(&self) -> &'static str {
+	pub const fn name(&self) -> &'static str {
 		match self {
 			Self::Assign { .. } => "Assign",
 			Self::Binary { .. } => "Binary",
@@ -78,7 +78,7 @@ impl Expr {
 		Self { span: span(&kind), kind }
 	}
 
-	pub fn name(&self) -> &'static str {
+	pub const fn name(&self) -> &'static str {
 		self.kind.name()
 	}
 }

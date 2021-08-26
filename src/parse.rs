@@ -11,7 +11,7 @@ const MAX_ARGS_COUNT: usize = 255;
 
 pub type Result<T> = std::result::Result<T, ParseError>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ParseError {
 	UnexpectedToken {
 		expected: TokenKind,
@@ -117,6 +117,7 @@ macro_rules! some_matches {
     }
 }
 
+#[derive(Debug)]
 pub struct Parser<'a> {
 	sess: &'a mut Session,
 	cursor: Cursor<'a, Token>,
@@ -187,7 +188,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	fn function(&mut self, kind: &'static str) -> Option<Result<Stmt>> {
+	fn function(&mut self, _kind: &'static str) -> Option<Result<Stmt>> {
 		let start = unwrap!(self.expect(TokenKind::Fun));
 		let name = unwrap!(self.expect(TokenKind::Identifier));
 
@@ -286,10 +287,7 @@ impl<'a> Parser<'a> {
 			self.while_statement()
 		} else if some_matches!(self.peek(), TokenKind::LeftBrace) {
 			let (span, statments) = unwrap!(self.block());
-			return Some(Ok(Stmt {
-				span,
-				kind: StmtKind::Block { statments },
-			}));
+			Some(Ok(Stmt { span, kind: StmtKind::Block { statments } }))
 		} else {
 			self.expression_statement()
 		}
@@ -466,7 +464,7 @@ impl<'a> Parser<'a> {
 
 		let close = unwrap!(self.expect(TokenKind::RightBrace));
 
-		return Some(Ok((open.span.union(close.span), stmts)));
+		Some(Ok((open.span.union(close.span), stmts)))
 	}
 
 	fn expression(&mut self) -> Option<Result<Expr>> {

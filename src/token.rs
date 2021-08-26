@@ -56,7 +56,7 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-	pub fn name(&self) -> &'static str {
+	pub const fn name(&self) -> &'static str {
 		use self::TokenKind::*;
 
 		match self {
@@ -122,11 +122,11 @@ pub struct Token {
 }
 
 impl Token {
-	pub fn new(kind: TokenKind, span: Span) -> Self {
+	pub const fn new(kind: TokenKind, span: Span) -> Self {
 		Self { span, kind }
 	}
 
-	pub fn name(&self) -> &'static str {
+	pub const fn name(&self) -> &'static str {
 		self.kind.name()
 	}
 }

@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use crate::interpret::Value;
@@ -18,8 +19,8 @@ impl Scope {
 	}
 
 	pub fn assign(&mut self, symbol: Symbol, value: Value) -> bool {
-		if self.values.contains_key(&symbol) {
-			self.values.insert(symbol, value);
+		if let Entry::Vacant(e) = self.values.entry(symbol) {
+			e.insert(value);
 			true
 		} else {
 			false
@@ -27,7 +28,7 @@ impl Scope {
 	}
 
 	pub fn get(&mut self, symbol: Symbol) -> Option<Value> {
-		self.values.get(&symbol).map(|v| v.clone())
+		self.values.get(&symbol).cloned()
 	}
 
 	pub fn contains(&self, symbol: Symbol) -> bool {

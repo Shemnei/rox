@@ -4,20 +4,20 @@ use std::collections::HashMap;
 pub struct Symbol(u32);
 
 impl Symbol {
-	fn new(id: u32) -> Self {
+	const fn new(id: u32) -> Self {
 		Self(id)
 	}
 
-	pub fn as_u32(self) -> u32 {
+	pub const fn as_u32(self) -> u32 {
 		self.0
 	}
 
-	pub fn as_usize(self) -> usize {
+	pub const fn as_usize(self) -> usize {
 		self.0 as usize
 	}
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct Interner {
 	values: Vec<&'static str>,
 	symbols: HashMap<&'static str, Symbol>,
@@ -25,7 +25,7 @@ pub struct Interner {
 
 impl Interner {
 	pub fn new() -> Self {
-		Self { values: Vec::new(), symbols: HashMap::new() }
+		Self::default()
 	}
 
 	pub fn prefill(init: &[&'static str]) -> Self {

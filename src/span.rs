@@ -66,8 +66,8 @@ impl Add<u32> for BytePos {
 	}
 }
 
-impl AddAssign<BytePos> for BytePos {
-	fn add_assign(&mut self, rhs: BytePos) {
+impl AddAssign<Self> for BytePos {
+	fn add_assign(&mut self, rhs: Self) {
 		self.0 += rhs.0;
 	}
 }
@@ -94,8 +94,8 @@ impl Sub<u32> for BytePos {
 	}
 }
 
-impl SubAssign<BytePos> for BytePos {
-	fn sub_assign(&mut self, rhs: BytePos) {
+impl SubAssign<Self> for BytePos {
+	fn sub_assign(&mut self, rhs: Self) {
 		self.0 -= rhs.0;
 	}
 }
@@ -116,10 +116,8 @@ pub struct Span {
 }
 
 impl Span {
-	pub const DUMMY: Span = Span {
-		low: BytePos(u32::max_value()),
-		high: BytePos(u32::max_value()),
-	};
+	pub const DUMMY: Self =
+		Self { low: BytePos(u32::MAX), high: BytePos(u32::MAX) };
 
 	#[inline]
 	pub fn new(mut low: BytePos, mut high: BytePos) -> Self {
@@ -131,12 +129,12 @@ impl Span {
 	}
 
 	#[inline]
-	pub fn low(self) -> BytePos {
+	pub const fn low(self) -> BytePos {
 		self.low
 	}
 
 	#[inline]
-	pub fn high(self) -> BytePos {
+	pub const fn high(self) -> BytePos {
 		self.low
 	}
 
@@ -184,7 +182,7 @@ impl fmt::Display for Span {
 }
 
 impl Index<Span> for str {
-	type Output = str;
+	type Output = Self;
 
 	fn index(&self, index: Span) -> &Self::Output {
 		&self[index.low.to_usize()..index.high.to_usize()]
