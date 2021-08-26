@@ -19,7 +19,7 @@ impl Scope {
 	}
 
 	pub fn assign(&mut self, symbol: Symbol, value: Value) -> bool {
-		if let Entry::Vacant(e) = self.values.entry(symbol) {
+		if let Entry::Occupied(mut e) = self.values.entry(symbol) {
 			e.insert(value);
 			true
 		} else {
